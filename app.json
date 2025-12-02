@@ -10,21 +10,45 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#6200ee"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "此应用需要访问麦克风来录制会议音频",
+        "NSSpeechRecognitionUsageDescription": "此应用需要语音识别权限来转录会议内容"
+      }
     },
     "android": {
+      "package": "com.charlo_o.MeetingAI",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#6200ee"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-av",
+        {
+          "microphonePermission": "此应用需要访问麦克风来录制会议音频"
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "1a133f11-acaa-420c-a23e-0248040cede3"
+      }
     }
   }
 }

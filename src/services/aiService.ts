@@ -1,9 +1,13 @@
 import axios from 'axios';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { AppSettings } from '../types';
 
-// 配置 axios 超时时间
-const createAxiosInstance = (timeout = 120000) => {
+// 文件大小限制 (25MB for OpenAI Whisper)
+// 新录音配置下：30分钟约10MB，60分钟约20MB，可支持约75分钟
+const MAX_FILE_SIZE = 25 * 1024 * 1024;
+
+// 配置 axios 超时时间 (默认 5 分钟)
+const createAxiosInstance = (timeout = 300000) => {
   return axios.create({ timeout });
 };
 
@@ -20,6 +24,13 @@ export const transcribeAudio = async (
     throw new Error('录音文件不存在');
   }
   
+  // 检查文件大小
+  const fileSize = (fileInfo as any).size || 0;
+  if (fileSize > MAX_FILE_SIZE) {
+    const sizeMB = (fileSize / (1024 * 1024)).toFixed(1);
+    throw new Error(`音频文件过大 (${sizeMB}MB)，超过 25MB 限制。建议录制较短的会议或分段录制。`);
+  }
+  
   // React Native 中 FormData 的文件对象格式
   formData.append('file', {
     uri: audioUri,
@@ -30,7 +41,8 @@ export const transcribeAudio = async (
   formData.append('model', settings.sttModel || 'whisper-1');
 
   try {
-    const api = createAxiosInstance();
+    // 长音频转写需要更长超时，设置为 10 分钟
+    const api = createAxiosInstance(600000);
     const baseUrl = settings.sttBaseUrl.replace(/\/$/, ''); // 移除末尾斜杠
     
     const response = await api.post(
@@ -131,7 +143,7 @@ export const textToSpeech = async (
     const base64 = btoa(binary);
     
     await FileSystem.writeAsStringAsync(savePath, base64, {
-      encoding: 'base64',
+      encoding: FileSystem.EncodingType.Base64,
     });
     
     return savePath;

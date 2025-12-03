@@ -1,29 +1,30 @@
 import { Audio } from 'expo-av';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 
 // 录音配置 - 使用 AAC/m4a 格式（OpenAI 友好且体积小）
+// 使用 48kbps 比特率，30分钟约 10MB，60分钟约 20MB
 const RECORDING_OPTIONS: Audio.RecordingOptions = {
   android: {
     extension: '.m4a',
     outputFormat: Audio.AndroidOutputFormat.MPEG_4,
     audioEncoder: Audio.AndroidAudioEncoder.AAC,
-    sampleRate: 44100,
-    numberOfChannels: 2,
-    bitRate: 128000,
+    sampleRate: 16000,  // 16kHz 足够语音识别
+    numberOfChannels: 1, // 单声道减小体积
+    bitRate: 48000,      // 48kbps
   },
   ios: {
     extension: '.m4a',
-    audioQuality: Audio.IOSAudioQuality.HIGH,
-    sampleRate: 44100,
-    numberOfChannels: 2,
-    bitRate: 128000,
+    audioQuality: Audio.IOSAudioQuality.MEDIUM,
+    sampleRate: 16000,
+    numberOfChannels: 1,
+    bitRate: 48000,
     linearPCMBitDepth: 16,
     linearPCMIsBigEndian: false,
     linearPCMIsFloat: false,
   },
   web: {
     mimeType: 'audio/webm',
-    bitsPerSecond: 128000,
+    bitsPerSecond: 48000,
   },
 };
 

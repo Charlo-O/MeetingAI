@@ -2,6 +2,9 @@
 
 基于 React Native + Expo 的会议录音应用，支持 OpenAI 兼容接口进行语音转文字和智能总结。
 
+<img width="7954" height="2725" alt="Frame 5" src="https://github.com/user-attachments/assets/269a7631-e599-49f8-9f3e-75e687e1d7f5" />
+
+
 ## 功能特性
 
 - **录音功能**: 使用 expo-av 录制高质量 m4a 格式音频

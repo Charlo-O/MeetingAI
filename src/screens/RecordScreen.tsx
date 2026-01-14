@@ -9,23 +9,25 @@ import {
 } from 'react-native-paper';
 import { Audio } from 'expo-av';
 import { useMeetingStore, useSettingsStore } from '../store';
-import { audioRecorder, processMeeting } from '../services';
+import { segmentedRecorder, processMeeting, processSegmentedMeeting } from '../services';
 import { formatDuration, generateMeetingTitle } from '../utils';
 
 export const RecordScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const theme = useTheme();
   const { addMeeting, updateMeeting } = useMeetingStore();
   const { settings } = useSettingsStore();
-  
+
   const [isRecording, setIsRecording] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [duration, setDuration] = useState(0);
+  const [currentSegment, setCurrentSegment] = useState(1);
+  const [totalSegments, setTotalSegments] = useState(1);
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStatus, setProcessingStatus] = useState('');
-  
+
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
-  
+
   // 脉冲动画
   useEffect(() => {
     if (isRecording && !isPaused) {
@@ -49,7 +51,7 @@ export const RecordScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
       pulseAnim.setValue(1);
     }
   }, [isRecording, isPaused]);
-  
+
   // 计时器
   useEffect(() => {
     if (isRecording && !isPaused) {
@@ -59,41 +61,54 @@ export const RecordScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     } else if (timerRef.current) {
       clearInterval(timerRef.current);
     }
-    
+
     return () => {
       if (timerRef.current) {
         clearInterval(timerRef.current);
       }
     };
   }, [isRecording, isPaused]);
-  
+
   const startRecording = async () => {
     try {
-      await audioRecorder.startRecording();
+      // 设置分段回调
+      segmentedRecorder.setOnSegmentComplete((current, total) => {
+        setCurrentSegment(current + 1); // 显示正在录制的段号
+        setTotalSegments(total + 1);
+      });
+
+      await segmentedRecorder.startRecording();
       setIsRecording(true);
       setDuration(0);
+      setCurrentSegment(1);
+      setTotalSegments(1);
     } catch (error: any) {
       Alert.alert('录音失败', error.message);
     }
   };
-  
+
   const stopRecording = async () => {
     try {
-      const { uri, duration: recordedDuration } = await audioRecorder.stopRecording();
+      const { segments, totalDuration } = await segmentedRecorder.stopRecording();
       setIsRecording(false);
-      
+
+      // 提取所有段的 URI
+      const audioUris = segments.map((seg: { uri: string; duration: number }) => seg.uri);
+      const firstUri = audioUris[0] || '';
+
       // 创建会议记录
       const title = generateMeetingTitle();
       const meetingId = await addMeeting({
         title,
-        audioUri: uri,
-        duration: recordedDuration || duration,
+        audioUri: firstUri, // 向后兼容
+        audioSegments: audioUris, // 新增：多段音频
+        duration: totalDuration || duration,
       });
-      
+
       // 询问是否立即处理
       Alert.alert(
         '录音完成',
-        '是否立即进行语音转文字和总结？',
+        `录制了 ${audioUris.length} 段音频，是否立即进行语音转文字和总结？`,
         [
           {
             text: '稍后处理',
@@ -102,7 +117,7 @@ export const RecordScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           },
           {
             text: '立即处理',
-            onPress: () => processRecording(meetingId, uri),
+            onPress: () => processSegmentedRecording(meetingId, audioUris),
           },
         ]
       );
@@ -110,27 +125,32 @@ export const RecordScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
       Alert.alert('停止录音失败', error.message);
     }
   };
-  
-  const processRecording = async (meetingId: string, audioUri: string) => {
+
+  const processSegmentedRecording = async (meetingId: string, audioUris: string[]) => {
     setIsProcessing(true);
-    
+
     try {
-      const result = await processMeeting(audioUri, settings, (status) => {
-        if (status === 'transcribing') {
-          setProcessingStatus('正在转录语音...');
-          updateMeeting(meetingId, { status: 'transcribing' });
-        } else if (status === 'summarizing') {
-          setProcessingStatus('正在生成总结...');
-          updateMeeting(meetingId, { status: 'summarizing' });
+      const result = await processSegmentedMeeting(
+        audioUris,
+        settings,
+        (status: string, current?: number, total?: number) => {
+          if (status === 'transcribing') {
+            const progress = current && total ? ` (${current}/${total})` : '';
+            setProcessingStatus(`正在转录语音...${progress}`);
+            updateMeeting(meetingId, { status: 'transcribing' });
+          } else if (status === 'summarizing') {
+            setProcessingStatus('正在生成总结...');
+            updateMeeting(meetingId, { status: 'summarizing' });
+          }
         }
-      });
-      
+      );
+
       updateMeeting(meetingId, {
         transcript: result.transcript,
         summary: result.summary,
         status: 'done',
       });
-      
+
       setIsProcessing(false);
       navigation.replace('Detail', { meetingId });
     } catch (error: any) {
@@ -144,7 +164,7 @@ export const RecordScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
       ]);
     }
   };
-  
+
   const handleBack = () => {
     if (isRecording) {
       Alert.alert(
@@ -156,7 +176,8 @@ export const RecordScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
             text: '放弃',
             style: 'destructive',
             onPress: async () => {
-              await audioRecorder.stopRecording().catch(() => {});
+              await segmentedRecorder.stopRecording().catch(() => { });
+              await segmentedRecorder.deleteAllSegments().catch(() => { });
               navigation.goBack();
             },
           },
@@ -190,7 +211,7 @@ export const RecordScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         <Appbar.BackAction onPress={handleBack} />
         <Appbar.Content title="录音" />
       </Appbar.Header>
-      
+
       <View style={styles.content}>
         {/* 录音指示器 */}
         <View style={styles.indicatorContainer}>
@@ -204,15 +225,22 @@ export const RecordScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
             ]}
           />
         </View>
-        
+
         {/* 时长显示 */}
         <Text style={styles.durationText}>{formatDuration(duration)}</Text>
-        
+
+        {/* 分段信息 */}
+        {isRecording && totalSegments > 0 && (
+          <Text style={styles.segmentText}>
+            第 {currentSegment} 段 {totalSegments > 1 ? `(共 ${totalSegments} 段)` : ''}
+          </Text>
+        )}
+
         {/* 状态文字 */}
         <Text style={styles.statusText}>
           {isRecording ? (isPaused ? '已暂停' : '录音中...') : '准备录音'}
         </Text>
-        
+
         {/* 控制按钮 */}
         <View style={styles.controls}>
           {!isRecording ? (
@@ -237,10 +265,10 @@ export const RecordScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
             </Button>
           )}
         </View>
-        
+
         {/* 提示 */}
         <Text style={styles.hintText}>
-          录音将保存为 m4a 格式，支持 OpenAI Whisper 接口
+          每 5 分钟自动保存一段，支持任意长时间录音
         </Text>
       </View>
     </View>
@@ -270,6 +298,13 @@ const styles = StyleSheet.create({
     fontSize: 48,
     fontWeight: '300',
     fontVariant: ['tabular-nums'],
+    marginBottom: 8,
+  },
+  segmentText: {
+    fontSize: 14,
+    color: '#2196F3',
+    fontWeight: '500',
+    marginTop: 4,
     marginBottom: 8,
   },
   statusText: {

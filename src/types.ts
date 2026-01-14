@@ -1,11 +1,15 @@
 // types.ts
 
+// STT Provider 类型
+export type SttProvider = 'whisper' | 'assemblyai';
+
 // 1. 用户自定义配置 (保存在本地)
 export interface AppSettings {
   // STT (语音转文字)
+  sttProvider: SttProvider; // 选择语音识别服务提供商
   sttBaseUrl: string; // 例如: https://api.openai.com/v1
   sttApiKey: string;
-  sttModel: string;   // 例如: whisper-1
+  sttModel: string;   // 例如: whisper-1 或 fun-asr
 
   // LLM (总结)
   llmBaseUrl: string; // 例如: https://api.deepseek.com/v1
@@ -25,7 +29,8 @@ export interface MeetingNote {
   id: string;
   title: string;
   createdAt: number;
-  audioUri: string;      // 本地录音文件路径
+  audioUri: string;      // 本地录音文件路径（向后兼容，单段录音使用）
+  audioSegments?: string[]; // 多段录音的文件路径数组（分段录音使用）
   duration: number;      // 时长(秒)
   transcript: string;    // STT 转出的原文
   summary: string;       // LLM 总结出的 Markdown
@@ -35,17 +40,19 @@ export interface MeetingNote {
 
 // 默认设置
 export const defaultSettings: AppSettings = {
+  sttProvider: 'whisper',
   sttBaseUrl: 'https://api.openai.com/v1',
   sttApiKey: '',
   sttModel: 'whisper-1',
-  
+
   llmBaseUrl: 'https://api.openai.com/v1',
   llmApiKey: '',
   llmModel: 'gpt-4o-mini',
   systemPrompt: '你是一个专业的会议助手。请对以下会议内容进行总结，包括：\n1. 会议要点\n2. 讨论的主要议题\n3. 做出的决定\n4. 待办事项（如有）\n\n请使用 Markdown 格式输出。',
-  
+
   ttsBaseUrl: 'https://api.openai.com/v1',
   ttsApiKey: '',
   ttsModel: 'tts-1',
   ttsVoice: 'alloy',
 };
+

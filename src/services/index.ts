@@ -1,2 +1,2 @@
-export { transcribeAudio, summarizeText, textToSpeech, processMeeting } from './aiService';
-export { audioRecorder, AudioRecorder } from './audioService';
+export { transcribeAudio, summarizeText, textToSpeech, processMeeting, processSegmentedMeeting } from './aiService';
+export { audioRecorder, AudioRecorder, segmentedRecorder, SegmentedRecorder } from './audioService';

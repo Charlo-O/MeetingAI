@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { skeuColors } from '../utils';
 
 interface SimpleMarkdownProps {
   children: string;
@@ -12,7 +13,7 @@ export const SimpleMarkdown: React.FC<SimpleMarkdownProps> = ({ children }) => {
   }
 
   const lines = children.split('\n');
-  
+
   const renderLine = (line: string, index: number) => {
     // 标题
     if (line.startsWith('### ')) {
@@ -24,7 +25,7 @@ export const SimpleMarkdown: React.FC<SimpleMarkdownProps> = ({ children }) => {
     if (line.startsWith('# ')) {
       return <Text key={index} style={styles.h1}>{line.slice(2)}</Text>;
     }
-    
+
     // 列表项
     if (line.startsWith('- ') || line.startsWith('* ')) {
       return (
@@ -34,7 +35,7 @@ export const SimpleMarkdown: React.FC<SimpleMarkdownProps> = ({ children }) => {
         </View>
       );
     }
-    
+
     // 数字列表
     const numberedMatch = line.match(/^(\d+)\.\s/);
     if (numberedMatch) {
@@ -45,16 +46,16 @@ export const SimpleMarkdown: React.FC<SimpleMarkdownProps> = ({ children }) => {
         </View>
       );
     }
-    
+
     // 空行
     if (line.trim() === '') {
       return <View key={index} style={styles.spacer} />;
     }
-    
+
     // 普通段落
     return <Text key={index} style={styles.text}>{renderInlineStyles(line)}</Text>;
   };
-  
+
   // 处理行内样式（粗体、斜体）
   const renderInlineStyles = (text: string): string => {
     // 移除 ** 和 * 标记，简单处理
@@ -80,26 +81,26 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 12,
     marginTop: 16,
-    color: '#333',
+    color: skeuColors.textPrimary,
   },
   h2: {
     fontSize: 20,
     fontWeight: 'bold',
     marginBottom: 8,
     marginTop: 12,
-    color: '#333',
+    color: skeuColors.textPrimary,
   },
   h3: {
     fontSize: 18,
     fontWeight: '600',
     marginBottom: 8,
     marginTop: 8,
-    color: '#333',
+    color: skeuColors.textPrimary,
   },
   text: {
     fontSize: 16,
     lineHeight: 24,
-    color: '#333',
+    color: skeuColors.textPrimary,
     marginBottom: 4,
   },
   listItem: {
@@ -109,20 +110,20 @@ const styles = StyleSheet.create({
   },
   bullet: {
     fontSize: 16,
-    color: '#666',
+    color: skeuColors.textSecondary,
     marginRight: 8,
     width: 16,
   },
   number: {
     fontSize: 16,
-    color: '#666',
+    color: skeuColors.textSecondary,
     marginRight: 8,
     width: 24,
   },
   listText: {
     fontSize: 16,
     lineHeight: 24,
-    color: '#333',
+    color: skeuColors.textPrimary,
     flex: 1,
   },
   spacer: {

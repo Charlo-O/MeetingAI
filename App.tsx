@@ -1,7 +1,7 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { PaperProvider, MD3LightTheme } from 'react-native-paper';
+import { PaperProvider } from 'react-native-paper';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AppNavigator } from './src/navigation';
 
@@ -44,16 +44,8 @@ const errorStyles = StyleSheet.create({
   message: { fontSize: 14, color: '#666', textAlign: 'center' },
 });
 
-// 自定义主题
-const theme = {
-  ...MD3LightTheme,
-  colors: {
-    ...MD3LightTheme.colors,
-    primary: '#6200ee',
-    secondary: '#03dac6',
-    background: '#f5f5f5',
-  },
-};
+// 导入轻拟物风格主题
+import { theme } from './src/utils';
 
 export default function App() {
   return (

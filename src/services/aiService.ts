@@ -16,8 +16,6 @@ const transcribeAudioWhisper = async (
   audioUri: string,
   settings: AppSettings
 ): Promise<string> => {
-  const formData = new FormData();
-
   // 获取文件信息
   const fileInfo = await FileSystem.getInfoAsync(audioUri);
   if (!fileInfo.exists) {
@@ -31,30 +29,23 @@ const transcribeAudioWhisper = async (
     throw new Error(`音频文件过大 (${sizeMB}MB)，超过 25MB 限制。建议录制较短的会议或分段录制。`);
   }
 
+  console.log('[STT Debug] Preparing file for upload, size:', fileSize, 'bytes');
 
-  // React Native 中需要将文件转为 base64 后创建 Blob
-  // 这样可以绕过 URI 对象的兼容性问题
-  console.log('[STT Debug] Reading audio file as base64...');
-  const base64Audio = await FileSystem.readAsStringAsync(audioUri, {
-    encoding: FileSystem.EncodingType.Base64,
-  });
+  // React Native 中使用特殊的文件对象格式
+  // FormData 在 React Native 中需要使用 uri/name/type 格式的对象
+  const formData = new FormData();
 
-  // 将 base64 转为 Blob
-  const byteCharacters = atob(base64Audio);
-  const byteNumbers = new Array(byteCharacters.length);
-  for (let i = 0; i < byteCharacters.length; i++) {
-    byteNumbers[i] = byteCharacters.charCodeAt(i);
-  }
-  const byteArray = new Uint8Array(byteNumbers);
-  const audioBlob = new Blob([byteArray], { type: 'audio/mp4' });
+  // React Native 特有的文件格式
+  const fileObject = {
+    uri: audioUri,
+    name: 'audio.m4a',
+    type: 'audio/mp4',
+  } as any;
 
-  // 创建一个文件对象
-  const audioFile = new File([audioBlob], 'audio.m4a', { type: 'audio/mp4' });
-
-  formData.append('file', audioFile);
+  formData.append('file', fileObject);
   formData.append('model', settings.sttModel || 'whisper-1');
 
-  console.log('[STT Debug] File converted to Blob, size:', audioBlob.size, 'bytes');
+  console.log('[STT Debug] FormData prepared with file URI');
 
   try {
     const baseUrl = settings.sttBaseUrl.replace(/\/$/, ''); // 移除末尾斜杠
@@ -105,43 +96,42 @@ const transcribeAudioWhisper = async (
 // ===== AssemblyAI STT =====
 
 // 步骤 1: 上传音频文件到 AssemblyAI
+// 使用 FileSystem.uploadAsync 替代 fetch + ArrayBuffer，解决 React Native 不支持 ArrayBuffer body 的问题
 const uploadAudioToAssemblyAI = async (
   audioUri: string,
   apiKey: string
 ): Promise<string> => {
-  console.log('[AssemblyAI] 读取音频文件...');
+  console.log('[AssemblyAI] 上传音频文件...');
 
-  // 读取文件为 base64
-  const base64Audio = await FileSystem.readAsStringAsync(audioUri, {
-    encoding: FileSystem.EncodingType.Base64,
-  });
+  try {
+    // 使用 FileSystem.uploadAsync 来上传文件
+    // 这是 React Native 中处理文件上传的正确方式，避免 ArrayBuffer 不支持的问题
+    const uploadResult = await FileSystem.uploadAsync(
+      'https://api.assemblyai.com/v2/upload',
+      audioUri,
+      {
+        httpMethod: 'POST',
+        uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
+        headers: {
+          'authorization': apiKey,
+          'content-type': 'application/octet-stream',
+        },
+      }
+    );
 
-  // 将 base64 转为二进制数组
-  const byteCharacters = atob(base64Audio);
-  const byteArray = new Uint8Array(byteCharacters.length);
-  for (let i = 0; i < byteCharacters.length; i++) {
-    byteArray[i] = byteCharacters.charCodeAt(i);
+    console.log('[AssemblyAI] 上传响应状态:', uploadResult.status);
+
+    if (uploadResult.status !== 200) {
+      throw new Error(`上传文件失败 (${uploadResult.status}): ${uploadResult.body}`);
+    }
+
+    const data = JSON.parse(uploadResult.body);
+    console.log('[AssemblyAI] 上传成功，URL:', data.upload_url);
+    return data.upload_url;
+  } catch (error: any) {
+    console.error('[AssemblyAI] 上传错误:', error);
+    throw new Error(`上传音频文件失败: ${error.message}`);
   }
-
-  console.log('[AssemblyAI] 上传文件，大小:', byteArray.length, 'bytes');
-
-  // 直接上传二进制数据（使用 Uint8Array 的 buffer）
-  const response = await fetch('https://api.assemblyai.com/v2/upload', {
-    method: 'POST',
-    headers: {
-      'authorization': apiKey,
-      'content-type': 'application/octet-stream',
-    },
-    body: byteArray.buffer, // 使用 ArrayBuffer
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`上传文件失败 (${response.status}): ${errorText}`);
-  }
-
-  const data = await response.json();
-  return data.upload_url;
 };
 
 // 步骤 2: 提交转写任务
@@ -350,32 +340,71 @@ export const processMeeting = async (
 
 // ===== 批量转写与合并（用于分段录音） =====
 
-// 批量转写多段音频并合并结果
+// 顺序转写多段音频（避免并行请求导致限流）
 export const transcribeMultipleAudios = async (
   audioUris: string[],
   settings: AppSettings,
   onProgress?: (current: number, total: number) => void
 ): Promise<string> => {
-  try {
-    // 并行转写所有段
-    const transcripts = await Promise.all(
-      audioUris.map(async (uri, index) => {
-        const transcript = await transcribeAudio(uri, settings);
-        onProgress?.(index + 1, audioUris.length);
-        return { segment: index + 1, text: transcript };
-      })
-    );
+  const transcripts: Array<{ segment: number; text: string; error?: string }> = [];
 
-    // 合并转写结果，添加段落标记
-    const mergedText = transcripts
-      .map(({ segment, text }) => `[第 ${segment} 段]\n${text}`)
-      .join('\n\n---\n\n');
+  for (let i = 0; i < audioUris.length; i++) {
+    const uri = audioUris[i];
+    const segmentNum = i + 1;
 
-    return mergedText;
-  } catch (error: any) {
-    console.error('Batch transcription error:', error);
-    throw new Error(`批量转写失败: ${error.message}`);
+    // 带重试的转录
+    let transcript = '';
+    let lastError: Error | null = null;
+
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        console.log(`[Transcribe] 开始转录第 ${segmentNum}/${audioUris.length} 段，尝试 ${attempt}/3`);
+        transcript = await transcribeAudio(uri, settings);
+        lastError = null;
+        break; // 成功则退出重试循环
+      } catch (error: any) {
+        lastError = error;
+        console.error(`[Transcribe] 第 ${segmentNum} 段转录失败 (尝试 ${attempt}/3):`, error.message);
+
+        if (attempt < 3) {
+          // 指数退避等待
+          const waitTime = Math.pow(2, attempt) * 1000;
+          console.log(`[Transcribe] 等待 ${waitTime}ms 后重试...`);
+          await new Promise(resolve => setTimeout(resolve, waitTime));
+        }
+      }
+    }
+
+    if (lastError) {
+      transcripts.push({
+        segment: segmentNum,
+        text: '',
+        error: `转录失败: ${lastError.message}`
+      });
+    } else {
+      transcripts.push({ segment: segmentNum, text: transcript });
+    }
+
+    onProgress?.(segmentNum, audioUris.length);
   }
+
+  // 检查是否全部失败
+  const successfulTranscripts = transcripts.filter(t => !t.error);
+  if (successfulTranscripts.length === 0) {
+    throw new Error('所有音频段落转录均失败，请检查网络和 API 配置');
+  }
+
+  // 合并结果
+  const mergedText = transcripts
+    .map(({ segment, text, error }) => {
+      if (error) {
+        return `[第 ${segment} 段 - ⚠️ ${error}]`;
+      }
+      return `[第 ${segment} 段]\n${text}`;
+    })
+    .join('\n\n---\n\n');
+
+  return mergedText;
 };
 
 // 处理分段录音的完整流程

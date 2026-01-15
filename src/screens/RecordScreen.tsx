@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, StyleSheet, Alert, Animated } from 'react-native';
+import { View, StyleSheet, Alert, Animated, Platform } from 'react-native';
 import {
   Appbar,
   Text,
@@ -10,7 +10,7 @@ import {
 import { Audio } from 'expo-av';
 import { useMeetingStore, useSettingsStore } from '../store';
 import { segmentedRecorder, processMeeting, processSegmentedMeeting } from '../services';
-import { formatDuration, generateMeetingTitle } from '../utils';
+import { formatDuration, generateMeetingTitle, skeuColors, skeuStyles } from '../utils';
 
 export const RecordScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const theme = useTheme();
@@ -191,11 +191,13 @@ export const RecordScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   if (isProcessing) {
     return (
       <View style={styles.container}>
-        <Appbar.Header>
-          <Appbar.Content title="处理中" />
+        <Appbar.Header style={styles.header}>
+          <Appbar.Content title="处理中" titleStyle={styles.headerTitle} />
         </Appbar.Header>
         <View style={styles.processingContainer}>
-          <ActivityIndicator size="large" color={theme.colors.primary} />
+          <View style={styles.processingIndicator}>
+            <ActivityIndicator size="large" color={skeuColors.primary} />
+          </View>
           <Text style={styles.processingText}>{processingStatus}</Text>
           <Text style={styles.processingHint}>
             请耐心等待，这可能需要一些时间...
@@ -207,9 +209,9 @@ export const RecordScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <Appbar.Header>
-        <Appbar.BackAction onPress={handleBack} />
-        <Appbar.Content title="录音" />
+      <Appbar.Header style={styles.header}>
+        <Appbar.BackAction onPress={handleBack} color={skeuColors.textPrimary} />
+        <Appbar.Content title="录音" titleStyle={styles.headerTitle} />
       </Appbar.Header>
 
       <View style={styles.content}>
@@ -218,16 +220,16 @@ export const RecordScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           <Animated.View
             style={[
               styles.recordIndicator,
-              {
-                backgroundColor: isRecording ? '#f44336' : '#ccc',
-                transform: [{ scale: pulseAnim }],
-              },
+              isRecording ? styles.recordIndicatorActive : styles.recordIndicatorIdle,
+              { transform: [{ scale: pulseAnim }] },
             ]}
           />
         </View>
 
         {/* 时长显示 */}
-        <Text style={styles.durationText}>{formatDuration(duration)}</Text>
+        <View style={styles.durationContainer}>
+          <Text style={styles.durationText}>{formatDuration(duration)}</Text>
+        </View>
 
         {/* 分段信息 */}
         {isRecording && totalSegments > 0 && (
@@ -244,25 +246,31 @@ export const RecordScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         {/* 控制按钮 */}
         <View style={styles.controls}>
           {!isRecording ? (
-            <Button
-              mode="contained"
-              onPress={startRecording}
-              style={styles.mainButton}
-              contentStyle={styles.mainButtonContent}
-              icon="microphone"
-            >
-              开始录音
-            </Button>
+            <View style={styles.mainButtonWrapper}>
+              <Button
+                mode="contained"
+                onPress={startRecording}
+                style={styles.mainButton}
+                contentStyle={styles.mainButtonContent}
+                labelStyle={styles.mainButtonLabel}
+                icon="microphone"
+              >
+                开始录音
+              </Button>
+            </View>
           ) : (
-            <Button
-              mode="contained"
-              onPress={stopRecording}
-              style={[styles.mainButton, { backgroundColor: '#f44336' }]}
-              contentStyle={styles.mainButtonContent}
-              icon="stop"
-            >
-              停止录音
-            </Button>
+            <View style={styles.mainButtonWrapper}>
+              <Button
+                mode="contained"
+                onPress={stopRecording}
+                style={styles.stopButton}
+                contentStyle={styles.mainButtonContent}
+                labelStyle={styles.mainButtonLabel}
+                icon="stop"
+              >
+                停止录音
+              </Button>
+            </View>
           )}
         </View>
 
@@ -278,7 +286,24 @@ export const RecordScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: skeuColors.background,
+  },
+  header: {
+    backgroundColor: skeuColors.background,
+    elevation: 0,
+    ...Platform.select({
+      ios: {
+        shadowOpacity: 0,
+      },
+      android: {
+        borderBottomWidth: 0,
+      }
+    })
+  },
+  headerTitle: {
+    color: skeuColors.textPrimary,
+    fontWeight: '600',
+    fontSize: 18,
   },
   content: {
     flex: 1,
@@ -287,47 +312,131 @@ const styles = StyleSheet.create({
     padding: 32,
   },
   indicatorContainer: {
-    marginBottom: 32,
+    marginBottom: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   recordIndicator: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  recordIndicatorIdle: {
+    backgroundColor: skeuColors.background,
+    ...Platform.select({
+      ios: {
+        shadowColor: skeuColors.shadowDark,
+        shadowOffset: { width: 8, height: 8 },
+        shadowOpacity: 0.2, // Softer
+        shadowRadius: 16,
+      },
+      android: {
+        elevation: 8,
+      },
+    }),
+    borderWidth: 6,
+    borderColor: skeuColors.backgroundDark,
+  },
+  recordIndicatorActive: {
+    backgroundColor: skeuColors.recordRed,
+    ...Platform.select({
+      ios: {
+        shadowColor: skeuColors.recordRed,
+        shadowOffset: { width: 0, height: 0 },
+        shadowOpacity: 0.6,
+        shadowRadius: 24, // Glow
+      },
+      android: {
+        elevation: 12,
+      },
+    }),
+    borderWidth: 0,
+  },
+  durationContainer: {
+    ...skeuStyles.neumorphicInset,
+    paddingHorizontal: 40,
+    paddingVertical: 20,
+    borderRadius: 24,
+    marginBottom: 16,
+    alignItems: 'center',
   },
   durationText: {
-    fontSize: 48,
+    fontSize: 42,
     fontWeight: '300',
     fontVariant: ['tabular-nums'],
-    marginBottom: 8,
+    color: skeuColors.textPrimary,
   },
   segmentText: {
     fontSize: 14,
-    color: '#2196F3',
-    fontWeight: '500',
-    marginTop: 4,
+    color: skeuColors.primary,
+    fontWeight: '600',
+    marginTop: 8,
     marginBottom: 8,
   },
   statusText: {
-    fontSize: 18,
-    color: '#666',
-    marginBottom: 48,
+    fontSize: 16,
+    color: skeuColors.textSecondary,
+    marginBottom: 56,
+    marginTop: 8,
   },
   controls: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 32,
   },
+  mainButtonWrapper: {
+    // Optional
+  },
   mainButton: {
-    minWidth: 160,
+    minWidth: 180,
+    borderRadius: 24,
+    backgroundColor: skeuColors.primary,
+    ...Platform.select({
+      ios: {
+        shadowColor: skeuColors.primaryDark,
+        shadowOffset: { width: 6, height: 6 },
+        shadowOpacity: 0.4,
+        shadowRadius: 12,
+      },
+      android: {
+        elevation: 8,
+      },
+    }),
+  },
+  stopButton: {
+    minWidth: 180,
+    borderRadius: 24,
+    backgroundColor: skeuColors.recordRed,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#AA0000',
+        shadowOffset: { width: 6, height: 6 },
+        shadowOpacity: 0.4,
+        shadowRadius: 12,
+      },
+      android: {
+        elevation: 8,
+      },
+    }),
   },
   mainButtonContent: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 24,
+  },
+  mainButtonLabel: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 18,
+    letterSpacing: 1,
   },
   hintText: {
-    fontSize: 12,
-    color: '#999',
+    fontSize: 13,
+    color: skeuColors.textMuted,
     textAlign: 'center',
+    maxWidth: '80%',
+    lineHeight: 20,
   },
   processingContainer: {
     flex: 1,
@@ -335,13 +444,25 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 32,
   },
+  processingIndicator: {
+    ...skeuStyles.neumorphicCard,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 32,
+  },
   processingText: {
-    fontSize: 18,
-    marginTop: 24,
-    marginBottom: 8,
+    fontSize: 20,
+    fontWeight: '600',
+    marginTop: 0,
+    marginBottom: 12,
+    color: skeuColors.textPrimary,
   },
   processingHint: {
-    fontSize: 14,
-    color: '#666',
+    fontSize: 15,
+    color: skeuColors.textSecondary,
+    textAlign: 'center',
   },
 });

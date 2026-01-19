@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { ScrollView, StyleSheet, View, Alert, Platform, TouchableOpacity } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import {
   Appbar,
   TextInput,
@@ -15,6 +16,7 @@ import {
 import { useSettingsStore } from '../store';
 import { defaultSettings, SttProvider } from '../types';
 import { skeuColors, skeuStyles } from '../utils';
+import { SkeuDialog } from '../components';
 
 export const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const theme = useTheme();
@@ -26,10 +28,12 @@ export const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
   const [showLlmKey, setShowLlmKey] = useState(false);
   const [showTtsKey, setShowTtsKey] = useState(false);
 
+  const [saveSuccessVisible, setSaveSuccessVisible] = useState(false);
+  const [resetDialogVisible, setResetDialogVisible] = useState(false);
+
   const handleSave = () => {
     updateSettings(localSettings);
-    Alert.alert('保存成功', '设置已保存，修改将立即生效');
-    navigation.goBack();
+    setSaveSuccessVisible(true);
   };
 
   const handleBack = () => {
@@ -39,20 +43,7 @@ export const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
   };
 
   const handleReset = () => {
-    Alert.alert(
-      '重置设置',
-      '确定要恢复默认设置吗？',
-      [
-        { text: '取消', style: 'cancel' },
-        {
-          text: '确定',
-          onPress: () => {
-            resetSettings();
-            setLocalSettings(defaultSettings);
-          },
-        },
-      ]
-    );
+    setResetDialogVisible(true);
   };
 
   const updateField = (field: string, value: string) => {
@@ -62,9 +53,15 @@ export const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
   return (
     <View style={styles.container}>
       <Appbar.Header style={styles.appbar}>
-        <Appbar.BackAction onPress={handleBack} color={skeuColors.textPrimary} />
+        {/* Skeuomorphic Back Button */}
+        <TouchableOpacity style={styles.appBarButton} onPress={handleBack} activeOpacity={0.9}>
+          <MaterialCommunityIcons name="arrow-left" size={22} color={skeuColors.textPrimary} />
+        </TouchableOpacity>
         <Appbar.Content title="设置" titleStyle={styles.appbarTitle} />
-        <Appbar.Action icon="content-save" onPress={handleSave} color={skeuColors.primary} />
+        {/* Skeuomorphic Save Button */}
+        <TouchableOpacity style={styles.appBarButton} onPress={handleSave} activeOpacity={0.9}>
+          <MaterialCommunityIcons name="content-save-outline" size={22} color={skeuColors.primary} />
+        </TouchableOpacity>
       </Appbar.Header>
 
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
@@ -341,6 +338,47 @@ export const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
           <Text style={styles.resetButtonText}>恢复默认设置</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      {/* Save Success Dialog */}
+      <SkeuDialog
+        visible={saveSuccessVisible}
+        title="保存成功"
+        message="设置已保存，修改将立即生效"
+        buttons={[
+          {
+            text: 'OK',
+            onPress: () => {
+              setSaveSuccessVisible(false);
+              navigation.goBack();
+            },
+          },
+        ]}
+        onDismiss={() => setSaveSuccessVisible(false)}
+      />
+
+      {/* Reset Confirmation Dialog */}
+      <SkeuDialog
+        visible={resetDialogVisible}
+        title="重置设置"
+        message="确定要恢复默认设置吗？"
+        buttons={[
+          {
+            text: '取消',
+            style: 'cancel',
+            onPress: () => setResetDialogVisible(false),
+          },
+          {
+            text: '确定',
+            style: 'destructive',
+            onPress: () => {
+              resetSettings();
+              setLocalSettings(defaultSettings);
+              setResetDialogVisible(false);
+            },
+          },
+        ]}
+        onDismiss={() => setResetDialogVisible(false)}
+      />
     </View>
   );
 };
@@ -367,6 +405,14 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 18,
   },
+  appBarButton: {
+    width: 40,
+    height: 40,
+    marginHorizontal: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...skeuStyles.neumorphicCard, // Convex style
+  },
   content: {
     flex: 1,
   },
@@ -376,8 +422,9 @@ const styles = StyleSheet.create({
   },
   card: {
     ...skeuStyles.neumorphicCard,
-    padding: 16,
+    padding: 24,
     marginBottom: 24,
+    backgroundColor: skeuColors.background,
   },
   cardTitle: {
     color: skeuColors.textPrimary,
@@ -396,15 +443,16 @@ const styles = StyleSheet.create({
   },
   segmentedContainer: {
     marginBottom: 16,
-    borderRadius: 12, // Reduced for inner elements
     overflow: 'hidden',
+    ...skeuStyles.neumorphicCard, // Convex style (raised buttons)
+    padding: 4,
   },
   segmentedButtons: {
-    backgroundColor: skeuColors.backgroundDark,
+    backgroundColor: 'transparent',
   },
   inputWrapper: {
     marginTop: 16,
-    ...skeuStyles.neumorphicInset,
+    ...skeuStyles.neumorphicInset, // This now looks much better (lighter)
   },
   input: {
     backgroundColor: 'transparent',
@@ -415,12 +463,13 @@ const styles = StyleSheet.create({
   },
   resetButton: {
     marginTop: 16,
-    ...skeuStyles.neumorphicButton,
-    backgroundColor: skeuColors.background, // Keep it neutral/light
+    ...skeuStyles.neumorphicCard, // Use Convex for button (not pressed state)
+    padding: 18,
+    alignItems: 'center',
     marginBottom: 32,
   },
   resetButtonText: {
-    color: skeuColors.recordRed, // Red for destructive/reset
+    color: skeuColors.recordRed,
     fontSize: 16,
     fontWeight: '600',
   },

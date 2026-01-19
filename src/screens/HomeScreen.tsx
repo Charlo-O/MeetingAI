@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, FlatList, StyleSheet, Alert, Platform } from 'react-native';
+import { View, FlatList, StyleSheet, Alert, Platform, TouchableOpacity } from 'react-native';
 import {
   Appbar,
   FAB,
@@ -16,6 +16,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useMeetingStore, useSettingsStore } from '../store';
 import { formatDate, formatDuration, truncateText, skeuColors, skeuStyles } from '../utils';
 import { MeetingNote } from '../types';
+import { SkeuDialog } from '../components';
 
 const statusLabels: Record<MeetingNote['status'], string> = {
   recorded: '待处理',
@@ -121,7 +122,7 @@ export const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const renderEmptyList = () => (
     <View style={styles.emptyContainer}>
       <View style={styles.emptyIconContainer}>
-        <Text style={styles.emptyIcon}>🎙️</Text>
+        <MaterialCommunityIcons name="microphone-outline" size={56} color={skeuColors.textMuted} />
       </View>
       <Title style={styles.emptyTitle}>暂无会议记录</Title>
       <Paragraph style={styles.emptyText}>
@@ -134,11 +135,14 @@ export const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     <View style={styles.container}>
       <Appbar.Header style={styles.appBar}>
         <Appbar.Content title="会议记录" titleStyle={styles.appBarTitle} />
-        <Appbar.Action
-          icon="cog"
-          iconColor={skeuColors.textSecondary}
+        {/* Skeuomorphic Settings Button */}
+        <TouchableOpacity
+          style={styles.settingsButton}
           onPress={() => navigation.navigate('Settings')}
-        />
+          activeOpacity={0.9}
+        >
+          <MaterialCommunityIcons name="cog-outline" size={22} color={skeuColors.textSecondary} />
+        </TouchableOpacity>
       </Appbar.Header>
 
       <FlatList
@@ -152,29 +156,33 @@ export const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         ListEmptyComponent={renderEmptyList}
       />
 
-      <FAB
-        icon="microphone"
+      {/* Skeuomorphic FAB - Convex style */}
+      <TouchableOpacity
         style={styles.fab}
         onPress={handleRecordPress}
-        color="white"
-      />
+        activeOpacity={0.9}
+      >
+        <MaterialCommunityIcons name="microphone" size={32} color={skeuColors.primary} />
+      </TouchableOpacity>
 
-      <Portal>
-        <Dialog
-          visible={deleteDialogVisible}
-          onDismiss={() => setDeleteDialogVisible(false)}
-          style={styles.dialog}
-        >
-          <Dialog.Title style={styles.dialogTitle}>删除确认</Dialog.Title>
-          <Dialog.Content>
-            <Paragraph style={styles.dialogText}>确定要删除这条会议记录吗？此操作不可撤销。</Paragraph>
-          </Dialog.Content>
-          <Dialog.Actions>
-            <Button onPress={() => setDeleteDialogVisible(false)} textColor={skeuColors.textSecondary}>取消</Button>
-            <Button onPress={confirmDelete} textColor={skeuColors.error}>删除</Button>
-          </Dialog.Actions>
-        </Dialog>
-      </Portal>
+      <SkeuDialog
+        visible={deleteDialogVisible}
+        title="删除确认"
+        message="确定要删除这条会议记录吗？此操作不可撤销。"
+        buttons={[
+          {
+            text: '取消',
+            style: 'cancel',
+            onPress: () => setDeleteDialogVisible(false),
+          },
+          {
+            text: '删除',
+            style: 'destructive',
+            onPress: confirmDelete,
+          },
+        ]}
+        onDismiss={() => setDeleteDialogVisible(false)}
+      />
     </View>
   );
 };
@@ -202,6 +210,14 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 20,
   },
+  settingsButton: {
+    width: 40,
+    height: 40,
+    marginRight: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...skeuStyles.neumorphicCard, // Convex style (includes borderRadius)
+  },
   listContent: {
     padding: 20,
     paddingBottom: 100,
@@ -210,28 +226,18 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
   },
-  // Card styles - Softer outer shadow
+  // Card styles - using global theme for consistency
   card: {
     marginBottom: 20,
-    borderRadius: 20,
+    ...skeuStyles.neumorphicCard,
+    padding: 0, // Card component handles padding
+    // Override slightly if needed, but best to stick to theme
     backgroundColor: skeuColors.background,
-    ...Platform.select({
-      ios: {
-        shadowColor: skeuColors.shadowDark,
-        shadowOffset: { width: 4, height: 4 }, // reduced offset for softness
-        shadowOpacity: 0.3, // softer opacity
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 4,
-      },
-    }),
   },
   cardInner: {
-    borderRadius: 20,
+    borderRadius: 24, // Match theme radius
     backgroundColor: skeuColors.background,
     overflow: 'hidden',
-    // removed highlight border for cleaner look
     elevation: 0,
   },
   cardContent: {
@@ -298,8 +304,11 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: 24,
     bottom: 32,
-    ...skeuStyles.neumorphicFabLarge,
-    backgroundColor: skeuColors.primary,
+    width: 72,
+    height: 72,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...skeuStyles.neumorphicCard, // Apply Convex shadow (includes bg and borderRadius)
   },
   // New Empty State Styles matching reference
   emptyContainer: {

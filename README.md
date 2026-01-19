@@ -19,7 +19,7 @@
 - **框架**: Expo SDK 54+
 - **语言**: TypeScript
 - **状态管理**: Zustand + AsyncStorage
-- **UI 库**: React Native Paper (Material Design 3)
+- **UI 库**: React Native Paper (Material Design 3) + Light Skeuomorphism (轻拟物风格)
 - **导航**: React Navigation
 - **录音/播放**: expo-av
 - **网络请求**: axios
@@ -117,17 +117,51 @@ src/
 
 ## 构建发布
 
+### 方法 1: EAS Build 云端构建（推荐）
+
 ```bash
+# 登录 Expo 账号
+npx eas login
+
 # 构建 Android APK
-npx expo build:android
+npx eas build --platform android --profile preview
 
 # 构建 iOS (需要 Apple Developer 账号)
-npx expo build:ios
-
-# 使用 EAS Build
-npx eas build --platform android
-npx eas build --platform ios
+npx eas build --platform ios --profile preview
 ```
+
+**优点**：
+- ✅ 无需配置本地环境
+- ✅ 自动处理所有依赖
+- ✅ 免费账户每月 30 次构建
+- ⏱️ 构建时间约 10-15 分钟
+
+### 方法 2: Android Studio 本地构建
+
+```bash
+# 1. 安装必要依赖
+npx expo install expo-system-ui
+
+# 2. 生成原生项目
+npx expo prebuild
+
+# 3. 使用 Android Studio 打开 android 文件夹
+
+# 4. 或使用命令行构建
+cd android
+.\gradlew.bat assembleRelease  # Windows
+./gradlew assembleRelease       # macOS/Linux
+
+# 5. APK 位于
+# android/app/build/outputs/apk/release/app-release.apk
+```
+
+**前提条件**：
+- 安装 Android Studio
+- 配置 Android SDK
+- 安装 JDK 17
+
+详细教程请查看项目中的 `build_apk_guide.md`
 
 ## License
 

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, StyleSheet, Alert, Animated, Platform } from 'react-native';
+import { View, StyleSheet, Alert, Animated, Platform, TouchableOpacity } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import {
   Appbar,
   Text,
@@ -11,6 +12,7 @@ import { Audio } from 'expo-av';
 import { useMeetingStore, useSettingsStore } from '../store';
 import { segmentedRecorder, processMeeting, processSegmentedMeeting } from '../services';
 import { formatDuration, generateMeetingTitle, skeuColors, skeuStyles } from '../utils';
+import { SkeuDialog } from '../components';
 
 export const RecordScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const theme = useTheme();
@@ -24,6 +26,14 @@ export const RecordScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const [totalSegments, setTotalSegments] = useState(1);
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStatus, setProcessingStatus] = useState('');
+
+  // Dialog state for "Recording Complete"
+  const [completeDialogVisible, setCompleteDialogVisible] = useState(false);
+  const [pendingMeetingId, setPendingMeetingId] = useState<string | null>(null);
+  const [pendingAudioUris, setPendingAudioUris] = useState<string[]>([]);
+
+  // Dialog state for "Discard Recording"
+  const [discardDialogVisible, setDiscardDialogVisible] = useState(false);
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -105,22 +115,10 @@ export const RecordScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         duration: totalDuration || duration,
       });
 
-      // 询问是否立即处理
-      Alert.alert(
-        '录音完成',
-        `录制了 ${audioUris.length} 段音频，是否立即进行语音转文字和总结？`,
-        [
-          {
-            text: '稍后处理',
-            style: 'cancel',
-            onPress: () => navigation.goBack(),
-          },
-          {
-            text: '立即处理',
-            onPress: () => processSegmentedRecording(meetingId, audioUris),
-          },
-        ]
-      );
+      // Show custom dialog
+      setPendingMeetingId(meetingId);
+      setPendingAudioUris(audioUris);
+      setCompleteDialogVisible(true);
     } catch (error: any) {
       Alert.alert('停止录音失败', error.message);
     }
@@ -167,22 +165,7 @@ export const RecordScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
 
   const handleBack = () => {
     if (isRecording) {
-      Alert.alert(
-        '放弃录音',
-        '确定要放弃当前录音吗？',
-        [
-          { text: '取消', style: 'cancel' },
-          {
-            text: '放弃',
-            style: 'destructive',
-            onPress: async () => {
-              await segmentedRecorder.stopRecording().catch(() => { });
-              await segmentedRecorder.deleteAllSegments().catch(() => { });
-              navigation.goBack();
-            },
-          },
-        ]
-      );
+      setDiscardDialogVisible(true);
     } else {
       navigation.goBack();
     }
@@ -210,7 +193,10 @@ export const RecordScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   return (
     <View style={styles.container}>
       <Appbar.Header style={styles.header}>
-        <Appbar.BackAction onPress={handleBack} color={skeuColors.textPrimary} />
+        {/* Skeuomorphic Back Button */}
+        <TouchableOpacity style={styles.appBarButton} onPress={handleBack} activeOpacity={0.9}>
+          <MaterialCommunityIcons name="arrow-left" size={22} color={skeuColors.textPrimary} />
+        </TouchableOpacity>
         <Appbar.Content title="录音" titleStyle={styles.headerTitle} />
       </Appbar.Header>
 
@@ -246,31 +232,23 @@ export const RecordScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         {/* 控制按钮 */}
         <View style={styles.controls}>
           {!isRecording ? (
-            <View style={styles.mainButtonWrapper}>
-              <Button
-                mode="contained"
-                onPress={startRecording}
-                style={styles.mainButton}
-                contentStyle={styles.mainButtonContent}
-                labelStyle={styles.mainButtonLabel}
-                icon="microphone"
-              >
-                开始录音
-              </Button>
-            </View>
+            <TouchableOpacity
+              style={styles.mainButton}
+              onPress={startRecording}
+              activeOpacity={0.9}
+            >
+              <MaterialCommunityIcons name="microphone" size={24} color="#FFFFFF" style={{ marginRight: 8 }} />
+              <Text style={styles.mainButtonLabel}>开始录音</Text>
+            </TouchableOpacity>
           ) : (
-            <View style={styles.mainButtonWrapper}>
-              <Button
-                mode="contained"
-                onPress={stopRecording}
-                style={styles.stopButton}
-                contentStyle={styles.mainButtonContent}
-                labelStyle={styles.mainButtonLabel}
-                icon="stop"
-              >
-                停止录音
-              </Button>
-            </View>
+            <TouchableOpacity
+              style={styles.stopButton}
+              onPress={stopRecording}
+              activeOpacity={0.9}
+            >
+              <MaterialCommunityIcons name="stop" size={24} color="#FFFFFF" style={{ marginRight: 8 }} />
+              <Text style={styles.mainButtonLabel}>停止录音</Text>
+            </TouchableOpacity>
           )}
         </View>
 
@@ -279,6 +257,58 @@ export const RecordScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           每 5 分钟自动保存一段，支持任意长时间录音
         </Text>
       </View>
+
+      {/* Recording Complete Dialog */}
+      <SkeuDialog
+        visible={completeDialogVisible}
+        title="录音完成"
+        message={`录制了 ${pendingAudioUris.length} 段音频，是否立即进行语音转文字和总结？`}
+        buttons={[
+          {
+            text: '稍后处理',
+            style: 'cancel',
+            onPress: () => {
+              setCompleteDialogVisible(false);
+              navigation.goBack();
+            },
+          },
+          {
+            text: '立即处理',
+            onPress: () => {
+              setCompleteDialogVisible(false);
+              if (pendingMeetingId) {
+                processSegmentedRecording(pendingMeetingId, pendingAudioUris);
+              }
+            },
+          },
+        ]}
+        onDismiss={() => setCompleteDialogVisible(false)}
+      />
+
+      {/* Discard Recording Dialog */}
+      <SkeuDialog
+        visible={discardDialogVisible}
+        title="放弃录音"
+        message="确定要放弃当前录音吗？"
+        buttons={[
+          {
+            text: '取消',
+            style: 'cancel',
+            onPress: () => setDiscardDialogVisible(false),
+          },
+          {
+            text: '放弃',
+            style: 'destructive',
+            onPress: async () => {
+              setDiscardDialogVisible(false);
+              await segmentedRecorder.stopRecording().catch(() => { });
+              await segmentedRecorder.deleteAllSegments().catch(() => { });
+              navigation.goBack();
+            },
+          },
+        ]}
+        onDismiss={() => setDiscardDialogVisible(false)}
+      />
     </View>
   );
 };
@@ -305,6 +335,14 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 18,
   },
+  appBarButton: {
+    width: 40,
+    height: 40,
+    marginLeft: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...skeuStyles.neumorphicCard, // Convex style
+  },
   content: {
     flex: 1,
     alignItems: 'center',
@@ -324,32 +362,21 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   recordIndicatorIdle: {
-    backgroundColor: skeuColors.background,
-    ...Platform.select({
-      ios: {
-        shadowColor: skeuColors.shadowDark,
-        shadowOffset: { width: 8, height: 8 },
-        shadowOpacity: 0.2, // Softer
-        shadowRadius: 16,
-      },
-      android: {
-        elevation: 8,
-      },
-    }),
-    borderWidth: 6,
-    borderColor: skeuColors.backgroundDark,
+    ...skeuStyles.neumorphicCard, // Use shared Convex style (includes backgroundColor)
+    borderRadius: 70, // Force circle (override neumorphicCard radius)
   },
   recordIndicatorActive: {
+    borderRadius: 70,
     backgroundColor: skeuColors.recordRed,
     ...Platform.select({
       ios: {
         shadowColor: skeuColors.recordRed,
         shadowOffset: { width: 0, height: 0 },
-        shadowOpacity: 0.6,
-        shadowRadius: 24, // Glow
+        shadowOpacity: 0.4, // 0.6 -> 0.4 (Less intense glow)
+        shadowRadius: 20,
       },
       android: {
-        elevation: 12,
+        elevation: 8,
       },
     }),
     borderWidth: 0,
@@ -386,44 +413,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 32,
   },
-  mainButtonWrapper: {
-    // Optional
-  },
   mainButton: {
     minWidth: 180,
-    borderRadius: 24,
-    backgroundColor: skeuColors.primary,
-    ...Platform.select({
-      ios: {
-        shadowColor: skeuColors.primaryDark,
-        shadowOffset: { width: 6, height: 6 },
-        shadowOpacity: 0.4,
-        shadowRadius: 12,
-      },
-      android: {
-        elevation: 8,
-      },
-    }),
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    ...skeuStyles.neumorphicCard, // Convex style
+    backgroundColor: skeuColors.primary, // Override for accent color
   },
   stopButton: {
     minWidth: 180,
-    borderRadius: 24,
-    backgroundColor: skeuColors.recordRed,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#AA0000',
-        shadowOffset: { width: 6, height: 6 },
-        shadowOpacity: 0.4,
-        shadowRadius: 12,
-      },
-      android: {
-        elevation: 8,
-      },
-    }),
-  },
-  mainButtonContent: {
-    paddingVertical: 10,
-    paddingHorizontal: 24,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    ...skeuStyles.neumorphicCard, // Convex style
+    backgroundColor: skeuColors.recordRed, // Override for stop color
   },
   mainButtonLabel: {
     color: '#FFFFFF',

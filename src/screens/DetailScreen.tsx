@@ -297,9 +297,13 @@ export const DetailScreen: React.FC<{ route: any; navigation: any }> = ({
   return (
     <View style={styles.container}>
       <Appbar.Header style={styles.appbar}>
-        <Appbar.BackAction onPress={() => navigation.goBack()} />
+        <TouchableOpacity style={styles.appBarButton} onPress={() => navigation.goBack()} activeOpacity={0.9}>
+          <MaterialCommunityIcons name="arrow-left" size={22} color={skeuColors.textPrimary} />
+        </TouchableOpacity>
         <Appbar.Content title={meeting.title} subtitle={formatDate(meeting.createdAt)} />
-        <Appbar.Action icon="share-variant" onPress={handleShare} />
+        <TouchableOpacity style={styles.appBarButton} onPress={handleShare} activeOpacity={0.9}>
+          <MaterialCommunityIcons name="share-variant-outline" size={22} color={skeuColors.textPrimary} />
+        </TouchableOpacity>
       </Appbar.Header>
 
       {/* Tab 切换 - 轻拟物风格 */}
@@ -311,6 +315,7 @@ export const DetailScreen: React.FC<{ route: any; navigation: any }> = ({
               activeTab === 'summary' && styles.tabButtonActive,
             ]}
             onPress={() => setActiveTab('summary')}
+            activeOpacity={0.8}
           >
             <MaterialCommunityIcons
               name="text-box-outline"
@@ -331,6 +336,7 @@ export const DetailScreen: React.FC<{ route: any; navigation: any }> = ({
               activeTab === 'transcript' && styles.tabButtonActive,
             ]}
             onPress={() => setActiveTab('transcript')}
+            activeOpacity={0.8}
           >
             <MaterialCommunityIcons
               name="file-document-outline"
@@ -463,16 +469,21 @@ const styles = StyleSheet.create({
     elevation: 0,
     ...Platform.select({
       ios: {
-        shadowColor: skeuColors.shadowDark,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
+        shadowOpacity: 0,
       },
       android: {
-        borderBottomWidth: 1,
-        borderBottomColor: 'rgba(163, 177, 198, 0.1)',
-      },
+        elevation: 0,
+        borderBottomWidth: 0,
+      }
     }),
+  },
+  appBarButton: {
+    width: 40,
+    height: 40,
+    marginHorizontal: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...skeuStyles.neumorphicCard, // Skueomorphic button
   },
   tabContainer: {
     padding: 16,
@@ -480,20 +491,9 @@ const styles = StyleSheet.create({
   },
   tabWrapper: {
     flexDirection: 'row',
-    backgroundColor: skeuColors.backgroundDark,
-    borderRadius: 16,
+    ...skeuStyles.neumorphicInset, // Use shared Concave style
     padding: 4,
-    ...Platform.select({
-      ios: {
-        shadowColor: 'rgba(0,0,0,0.05)',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 1,
-        shadowRadius: 1,
-      },
-      android: {
-        elevation: 0, // inset not well supported, use color diff
-      }
-    }),
+    borderRadius: 20, // Override if needed
   },
   tabButton: {
     flex: 1,
@@ -506,18 +506,8 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   tabButtonActive: {
+    ...skeuStyles.neumorphicCard, // Use shared Convex style
     backgroundColor: skeuColors.background,
-    ...Platform.select({
-      ios: {
-        shadowColor: skeuColors.shadowDark,
-        shadowOffset: { width: 2, height: 2 },
-        shadowOpacity: 0.2,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
   },
   tabButtonText: {
     fontSize: 14,
@@ -545,21 +535,9 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
   },
   contentCard: {
-    backgroundColor: skeuColors.background, // Match page background for flat/raised look
-    borderRadius: 24,
+    ...skeuStyles.neumorphicCard, // Use shared Convex style
     padding: 24,
     minHeight: 200,
-    ...Platform.select({
-      ios: {
-        shadowColor: skeuColors.shadowDark,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.05,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 1,
-      },
-    }),
   },
   processingText: {
     marginTop: 16,
@@ -626,8 +604,8 @@ const styles = StyleSheet.create({
       ios: {
         shadowColor: skeuColors.shadowDark,
         shadowOffset: { width: 0, height: -4 },
-        shadowOpacity: 0.1,
-        shadowRadius: 12,
+        shadowOpacity: 0.05, // 0.1 -> 0.05
+        shadowRadius: 10,
       },
       android: {
         elevation: 8,
@@ -644,31 +622,20 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: skeuColors.background,
+    ...skeuStyles.neumorphicCard, // Use shared Convex style
     alignItems: 'center',
     justifyContent: 'center',
-    ...skeuStyles.neumorphicButton,
     paddingHorizontal: 0,
     paddingVertical: 0,
+    backgroundColor: skeuColors.background,
   },
   ttsButton: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: skeuColors.background,
     alignItems: 'center',
     justifyContent: 'center',
-    ...Platform.select({
-      ios: {
-        shadowColor: skeuColors.shadowDark,
-        shadowOffset: { width: 2, height: 2 },
-        shadowOpacity: 0.2,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 4,
-      },
-    }),
+    ...skeuStyles.neumorphicCard, // Use shared Convex style
     marginLeft: 16,
   },
   playbackTime: {
@@ -693,16 +660,12 @@ const styles = StyleSheet.create({
   actionButton: {
     flex: 1,
     flexDirection: 'row',
+    gap: 8,
+    ...skeuStyles.neumorphicCard, // Use shared Convex style
+    paddingHorizontal: 12,
+    paddingVertical: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: skeuColors.background,
-    borderRadius: 16,
-    paddingVertical: 14,
-    paddingHorizontal: 12,
-    gap: 8,
-    ...skeuStyles.neumorphicButton,
-    paddingHorizontal: 12,
-    paddingVertical: 14,
   },
   actionButtonText: {
     fontSize: 14,
@@ -710,8 +673,8 @@ const styles = StyleSheet.create({
     color: skeuColors.textPrimary,
   },
   primaryActionButton: {
+    ...skeuStyles.neumorphicCard, // Use shared Convex style
     backgroundColor: skeuColors.primary,
-    ...skeuStyles.primaryButton,
     paddingHorizontal: 12,
     paddingVertical: 14,
   },

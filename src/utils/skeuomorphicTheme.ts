@@ -3,118 +3,88 @@ import { MD3LightTheme } from 'react-native-paper';
 
 // ==================== 颜色定义 ====================
 export const skeuColors = {
-  // 主背景色 - 更浅的灰白，符合 Neu 风格
-  background: '#EFEEEE',
-  backgroundDark: '#E2E6EA',
-  backgroundLight: '#F5F7FA',
+  // 主背景色 - 严格统一 (Same Color Background)
+  background: '#F2F3F7',
+  backgroundDark: '#F2F3F7', // Strict same color
+  backgroundLight: '#FFFFFF',
 
-  // 主色调 - 橙色 (参考图中的高亮色)
-  primary: '#FF8A00',
-  primaryLight: '#FFAB40',
-  primaryDark: '#E65100',
+  // 主色调 - 活力橙 (Vibrant yet Soft)
+  primary: '#FF9F43',
+  primaryLight: '#FFC078',
+  primaryDark: '#E58E26',
 
   // 渐变色端点
-  gradientStart: '#FFA726',
-  gradientEnd: '#FF7043',
+  gradientStart: '#FFAB91',
+  gradientEnd: '#FF9F43',
 
-  // 阴影颜色
-  shadowDark: '#BFCEE0', // 稍微深一点的蓝灰，增强对比度
+  // 阴影颜色 - 极致轻柔 (Light & Shadow)
+  shadowDark: '#D1D9E6', // 冷调灰蓝
   shadowLight: '#FFFFFF',
-  shadowDarkStrong: '#A3B1C6',
+  shadowDarkStrong: '#A6B0C3', // 稍深一点用于极小元素
 
-  // 高光
-  highlightTop: 'rgba(255, 255, 255, 0.9)',
-  highlightBottom: 'rgba(163, 177, 198, 0.5)',
+  // 文字颜色 - 低对比度 (Low Contrast)
+  textPrimary: '#4A5568', // 深灰而非纯黑
+  textSecondary: '#718096', // 中灰
+  textMuted: '#A0AEC0',
 
-  // 文字颜色
-  textPrimary: '#4A5568', // 深灰，柔和一点
-  textSecondary: '#A0AEC0',
-  textMuted: '#CBD5E0',
+  // 功能色 - 柔和版
+  success: '#55EFC4',
+  warning: '#FFEAA7',
+  error: '#FF7675',
+  info: '#74B9FF',
 
-  // 功能色
-  success: '#48BB78',
-  warning: '#ECC94B',
-  error: '#F56565',
-  info: '#4299E1',
+  // 录音按钮特殊色 (珊瑚红)
+  recordRed: '#FF6B6B',
+  recordRedLight: '#FF8787',
+  recordRedDark: '#EE5253',
+  recordGradientStart: '#FF9F9F',
+  recordGradientEnd: '#FF6B6B',
 
-  // 录音按钮特殊色 (保持红色系，但调整为更柔和)
-  recordRed: '#E53E3E',
-  recordRedLight: '#FC8181',
-  recordRedDark: '#C53030',
-  recordGradientStart: '#FF6B6B',
-  recordGradientEnd: '#E53E3E',
-
-  // 卡片背景
-  cardBackground: '#EFEEEE',
+  // 卡片背景 - 必须与背景同色
+  cardBackground: '#F2F3F7',
   surfaceLight: '#F7F9FC',
 };
 
 // ==================== 轻拟物阴影样式 ====================
+// ==================== 轻拟物阴影样式 ====================
 export const skeuStyles = StyleSheet.create({
-  // 凸起效果的卡片样式（外阴影）
+  // 凸起效果 (Extruded / Convex) - 静止状态
   neumorphicCard: {
     backgroundColor: skeuColors.background,
-    borderRadius: 24, // 更圆润
+    borderRadius: 30, // 圆润造型 (Rounded Shapes)
     ...Platform.select({
       ios: {
         shadowColor: skeuColors.shadowDark,
         shadowOffset: { width: 8, height: 8 },
-        shadowOpacity: 0.4,
+        shadowOpacity: 0.5,
         shadowRadius: 16,
-        // 添加第二个阴影需要 View 嵌套，或者使用 trick，这里先定义主阴影
-        // 注意：RN 默认不支持多重阴影，通常需要 hack 或两个 View。
-        // 为了简化，Light 阴影通常由内部 View 或 Wrapper 处理，或者接受这是 "近似" 效果
+        // Hack: combining heavy shadow with light background to simulate 2 light sources requires wrapper usually, 
+        // but here we simplify with a strong primary shadow and light background color
       },
       android: {
         elevation: 8,
       },
+      web: {
+        boxShadow: `8px 8px 16px ${skeuColors.shadowDark}, -8px -8px 16px ${skeuColors.shadowLight}`,
+      }
     }),
   },
 
-  // 凸起卡片的浅色高光层（需要叠加使用）
-  neumorphicCardHighlight: {
-    backgroundColor: skeuColors.background,
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.6)',
-    ...Platform.select({
-      ios: {
-        shadowColor: skeuColors.shadowLight,
-        shadowOffset: { width: -6, height: -6 },
-        shadowOpacity: 1,
-        shadowRadius: 16,
-      },
-      android: {
-        borderTopWidth: 2,
-        borderLeftWidth: 2,
-        borderTopColor: 'rgba(255, 255, 255, 0.8)',
-        borderLeftColor: 'rgba(255, 255, 255, 0.8)',
-        borderBottomColor: 'rgba(163, 177, 198, 0.2)',
-        borderRightColor: 'rgba(163, 177, 198, 0.2)',
-      },
-    }),
-  },
-
-  // 凹陷效果的样式（内阴影模拟）
+  // 凹陷效果 (Pressed / Concave) - 激活状态
   neumorphicInset: {
-    backgroundColor: skeuColors.backgroundDark, //稍微深一点
-    borderRadius: 16,
-    borderWidth: 0, // 去掉边框，靠颜色差
+    backgroundColor: skeuColors.background,
+    borderRadius: 30,
     ...Platform.select({
       ios: {
-        // iOS 原生不支持 inset shadow，通常用 darker bg 模拟
-        backgroundColor: '#E2E6EA',
+        backgroundColor: '#E6E7EE', // iOS fallback
       },
       android: {
+        backgroundColor: '#E6E7EE', // Android fallback
         elevation: 0,
-        backgroundColor: '#E2E6EA',
-        borderTopWidth: 2,
-        borderLeftWidth: 2,
-        borderTopColor: 'rgba(163, 177, 198, 0.3)',
-        borderLeftColor: 'rgba(163, 177, 198, 0.3)',
-        borderBottomColor: 'rgba(255, 255, 255, 0.5)',
-        borderRightColor: 'rgba(255, 255, 255, 0.5)',
       },
+      web: {
+        boxShadow: `inset 6px 6px 12px ${skeuColors.shadowDark}, inset -6px -6px 12px ${skeuColors.shadowLight}`,
+      }
     }),
   },
 
@@ -129,17 +99,17 @@ export const skeuStyles = StyleSheet.create({
     ...Platform.select({
       ios: {
         shadowColor: skeuColors.shadowDark,
-        shadowOffset: { width: 5, height: 5 },
-        shadowOpacity: 0.35,
+        shadowOffset: { width: 6, height: 6 },
+        shadowOpacity: 0.15, // 0.35 -> 0.15
         shadowRadius: 10,
       },
       android: {
-        elevation: 6,
+        elevation: 4, // 6 -> 4
         borderWidth: 1,
-        borderTopColor: 'rgba(255, 255, 255, 0.7)',
-        borderLeftColor: 'rgba(255, 255, 255, 0.7)',
-        borderBottomColor: 'rgba(163, 177, 198, 0.2)',
-        borderRightColor: 'rgba(163, 177, 198, 0.2)',
+        borderTopColor: 'rgba(255, 255, 255, 0.8)',
+        borderLeftColor: 'rgba(255, 255, 255, 0.8)',
+        borderBottomColor: 'rgba(209, 217, 230, 0.1)',
+        borderRightColor: 'rgba(209, 217, 230, 0.1)',
       },
     }),
   },
@@ -162,8 +132,8 @@ export const skeuStyles = StyleSheet.create({
       android: {
         elevation: 1,
         borderWidth: 1,
-        borderTopColor: 'rgba(163, 177, 198, 0.3)',
-        borderLeftColor: 'rgba(163, 177, 198, 0.3)',
+        borderTopColor: 'rgba(176, 188, 206, 0.2)',
+        borderLeftColor: 'rgba(176, 188, 206, 0.2)',
         borderBottomColor: 'rgba(255, 255, 255, 0.5)',
         borderRightColor: 'rgba(255, 255, 255, 0.5)',
       },
@@ -182,16 +152,16 @@ export const skeuStyles = StyleSheet.create({
       ios: {
         shadowColor: skeuColors.shadowDark,
         shadowOffset: { width: 6, height: 6 },
-        shadowOpacity: 0.4,
+        shadowOpacity: 0.2, // 0.4 -> 0.2
         shadowRadius: 12,
       },
       android: {
-        elevation: 10,
+        elevation: 6, // 10 -> 6
         borderWidth: 1,
-        borderTopColor: 'rgba(255, 255, 255, 0.8)',
-        borderLeftColor: 'rgba(255, 255, 255, 0.8)',
-        borderBottomColor: 'rgba(163, 177, 198, 0.3)',
-        borderRightColor: 'rgba(163, 177, 198, 0.3)',
+        borderTopColor: 'rgba(255, 255, 255, 0.9)',
+        borderLeftColor: 'rgba(255, 255, 255, 0.9)',
+        borderBottomColor: 'rgba(209, 217, 230, 0.2)',
+        borderRightColor: 'rgba(209, 217, 230, 0.2)',
       },
     }),
   },
@@ -208,16 +178,16 @@ export const skeuStyles = StyleSheet.create({
       ios: {
         shadowColor: skeuColors.shadowDark,
         shadowOffset: { width: 8, height: 8 },
-        shadowOpacity: 0.4,
+        shadowOpacity: 0.2, // 0.4 -> 0.2
         shadowRadius: 16,
       },
       android: {
-        elevation: 12,
-        borderWidth: 1.5,
-        borderTopColor: 'rgba(255, 255, 255, 0.8)',
-        borderLeftColor: 'rgba(255, 255, 255, 0.8)',
-        borderBottomColor: 'rgba(163, 177, 198, 0.3)',
-        borderRightColor: 'rgba(163, 177, 198, 0.3)',
+        elevation: 8, // 12 -> 8
+        borderWidth: 1,
+        borderTopColor: 'rgba(255, 255, 255, 0.9)',
+        borderLeftColor: 'rgba(255, 255, 255, 0.9)',
+        borderBottomColor: 'rgba(209, 217, 230, 0.2)',
+        borderRightColor: 'rgba(209, 217, 230, 0.2)',
       },
     }),
   },
@@ -233,13 +203,13 @@ export const skeuStyles = StyleSheet.create({
     ...Platform.select({
       ios: {
         shadowColor: skeuColors.recordRedDark,
-        shadowOffset: { width: 5, height: 5 },
-        shadowOpacity: 0.5,
-        shadowRadius: 12,
+        shadowOffset: { width: 6, height: 6 },
+        shadowOpacity: 0.25, // 0.5 -> 0.25
+        shadowRadius: 16, // 12 -> 16
       },
       android: {
-        elevation: 10,
-        borderWidth: 3,
+        elevation: 6, // 10 -> 6
+        borderWidth: 2, // 3 -> 2
         borderTopColor: skeuColors.recordRedLight,
         borderLeftColor: skeuColors.recordRedLight,
         borderBottomColor: skeuColors.recordRedDark,
@@ -260,7 +230,7 @@ export const skeuStyles = StyleSheet.create({
       ios: {
         shadowColor: skeuColors.recordRed,
         shadowOffset: { width: 0, height: 0 },
-        shadowOpacity: 0.8,
+        shadowOpacity: 0.5, // 0.8 -> 0.5
         shadowRadius: 24,
       },
       android: {
@@ -282,13 +252,13 @@ export const skeuStyles = StyleSheet.create({
     ...Platform.select({
       ios: {
         shadowColor: skeuColors.recordRedDark,
-        shadowOffset: { width: 3, height: 3 },
-        shadowOpacity: 0.5,
-        shadowRadius: 8,
+        shadowOffset: { width: 4, height: 4 },
+        shadowOpacity: 0.25, // 0.5 -> 0.25
+        shadowRadius: 10, // 8 -> 10
       },
       android: {
-        elevation: 8,
-        borderWidth: 1.5,
+        elevation: 4,
+        borderWidth: 1,
         borderTopColor: skeuColors.recordRedLight,
         borderLeftColor: skeuColors.recordRedLight,
         borderBottomColor: skeuColors.recordRedDark,
@@ -305,7 +275,7 @@ export const skeuStyles = StyleSheet.create({
 
   // 输入框样式
   neumorphicInput: {
-    backgroundColor: '#E2E6EA',
+    backgroundColor: '#EBEDF0', // Slightly darker to look "pressed in"
     borderRadius: 16,
     paddingVertical: 14,
     paddingHorizontal: 20,
@@ -313,16 +283,16 @@ export const skeuStyles = StyleSheet.create({
       ios: {
         shadowColor: skeuColors.shadowDarkStrong,
         shadowOffset: { width: 2, height: 2 },
-        shadowOpacity: 0.2,
+        shadowOpacity: 0.1, // 0.2 -> 0.1
         shadowRadius: 4,
       },
       android: {
         elevation: 0,
         borderWidth: 1,
-        borderTopColor: 'rgba(163, 177, 198, 0.4)',
-        borderLeftColor: 'rgba(163, 177, 198, 0.4)',
-        borderBottomColor: 'rgba(255, 255, 255, 0.6)',
-        borderRightColor: 'rgba(255, 255, 255, 0.6)',
+        borderTopColor: 'rgba(176, 188, 206, 0.3)',
+        borderLeftColor: 'rgba(176, 188, 206, 0.3)',
+        borderBottomColor: 'rgba(255, 255, 255, 0.5)',
+        borderRightColor: 'rgba(255, 255, 255, 0.5)',
       },
     }),
   },
@@ -339,16 +309,16 @@ export const skeuStyles = StyleSheet.create({
       ios: {
         shadowColor: skeuColors.shadowDark,
         shadowOffset: { width: 4, height: 4 },
-        shadowOpacity: 0.4,
+        shadowOpacity: 0.2, // 0.4 -> 0.2
         shadowRadius: 8,
       },
       android: {
-        elevation: 5,
+        elevation: 3,
         borderWidth: 1,
-        borderTopColor: 'rgba(255, 255, 255, 0.7)',
-        borderLeftColor: 'rgba(255, 255, 255, 0.7)',
-        borderBottomColor: 'rgba(163, 177, 198, 0.3)',
-        borderRightColor: 'rgba(163, 177, 198, 0.3)',
+        borderTopColor: 'rgba(255, 255, 255, 0.8)',
+        borderLeftColor: 'rgba(255, 255, 255, 0.8)',
+        borderBottomColor: 'rgba(209, 217, 230, 0.2)',
+        borderRightColor: 'rgba(209, 217, 230, 0.2)',
       },
     }),
   },
@@ -356,7 +326,7 @@ export const skeuStyles = StyleSheet.create({
   // 分隔线
   divider: {
     height: 1,
-    backgroundColor: 'rgba(163, 177, 198, 0.3)',
+    backgroundColor: 'rgba(176, 188, 206, 0.2)',
     marginVertical: 12,
   },
 
@@ -371,12 +341,12 @@ export const skeuStyles = StyleSheet.create({
     ...Platform.select({
       ios: {
         shadowColor: skeuColors.primaryDark,
-        shadowOffset: { width: 4, height: 4 },
-        shadowOpacity: 0.4,
-        shadowRadius: 8,
+        shadowOffset: { width: 6, height: 6 },
+        shadowOpacity: 0.25, // 0.4 -> 0.25
+        shadowRadius: 12,
       },
       android: {
-        elevation: 6,
+        elevation: 4,
         borderWidth: 1,
         borderTopColor: skeuColors.primaryLight,
         borderLeftColor: skeuColors.primaryLight,
@@ -423,9 +393,9 @@ export const getNeumorphicShadow = (
   intensity: 'light' | 'medium' | 'strong' = 'medium'
 ) => {
   const config = {
-    light: { offset: 4, opacity: 0.3, radius: 8 },
-    medium: { offset: 8, opacity: 0.4, radius: 16 },
-    strong: { offset: 12, opacity: 0.5, radius: 20 },
+    light: { offset: 4, opacity: 0.1, radius: 10 }, // 8 -> 10 (Softer)
+    medium: { offset: 8, opacity: 0.15, radius: 18 }, // 16 -> 18 (Match tool's ~15px+ vibe)
+    strong: { offset: 12, opacity: 0.25, radius: 24 }, // 20 -> 24
   };
   const { offset, opacity, radius } = config[intensity];
 
@@ -437,7 +407,7 @@ export const getNeumorphicShadow = (
       shadowRadius: radius,
     },
     android: {
-      elevation: offset + 2,
+      elevation: offset / 2,
     },
   });
 };

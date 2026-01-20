@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="zh" data-lang="zh">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light" />
+
+    <title>MeetingAI - 会议录音助手</title>
+    <meta
+      name="description"
+      content="MeetingAI（会议录音助手）：录音、转文字、生成总结。轻拟物界面，专注会议回顾与可追溯原文。"
+    />
+
+    <meta property="og:title" content="MeetingAI - 会议录音助手" />
+    <meta
+      property="og:description"
+      content="录音、转文字、生成总结。让会议更好回顾：总结快读，原文可追溯。"
+    />
+    <meta property="og:type" content="website" />
+
+    <link rel="icon" href="assets/icon.png" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+
+  <body>
+    <div class="bg" aria-hidden="true"></div>
+
+    <header class="topbar">
+      <div class="container topbar-inner">
+        <a class="brand convex" href="#top" aria-label="MeetingAI">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" class="icon" role="img" aria-label="">
+              <path
+                d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Zm6-3a6 6 0 0 1-12 0H4a8 8 0 0 0 7 7.93V22h2v-3.07A8 8 0 0 0 20 11h-2Z"
+              />
+            </svg>
+          </span>
+          <span class="brand-name">MeetingAI</span>
+        </a>
+
+        <button class="lang-toggle convex" type="button" id="langToggle" aria-label="Toggle language">
+          <span data-i18n="nav.lang">中·EN</span>
+          <span class="lang-dot" aria-hidden="true"></span>
+        </button>
+      </div>
+    </header>
+
+    <main id="top">
+      <!-- Hero -->
+      <section class="hero">
+        <div class="container hero-inner">
+          <div class="hero-left">
+            <div class="logo-row">
+              <div class="logo convex" aria-hidden="true">
+                <svg viewBox="0 0 24 24" class="logo-icon" role="img" aria-label="">
+                  <path
+                    d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Zm6-3a6 6 0 0 1-12 0H4a8 8 0 0 0 7 7.93V22h2v-3.07A8 8 0 0 0 20 11h-2Z"
+                  />
+                </svg>
+              </div>
+
+              <div class="logo-text">
+                <h1 class="h1" data-i18n="hero.title">会议录音助手</h1>
+                <p class="tagline" data-i18n="hero.tagline">
+                  把会议录下来，把信息讲清楚。
+                </p>
+              </div>
+            </div>
+
+            <p class="hero-desc" data-i18n="hero.desc">
+              录音、转文字、生成总结。总结用于快读，原文用于追溯；支持编辑原文后重新生成总结。
+            </p>
+
+            <div class="cta-row">
+              <a class="btn btn-primary convex" data-cta="releases" href="https://github.com/Start-to-input/MeetingAI/releases" target="_blank" rel="noreferrer">
+                <span data-i18n="hero.ctaPrimary">下载 Releases</span>
+                <span class="btn-sub" data-i18n="hero.ctaPrimarySub">Android APK · 安装包</span>
+              </a>
+              <a class="btn btn-secondary convex" data-cta="github" href="https://github.com/Start-to-input/MeetingAI" target="_blank" rel="noreferrer">
+                <span class="btn-inline">
+                  <span class="btn-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" class="icon" role="img" aria-label="">
+                      <path
+                        d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.7c-2.78.6-3.37-1.34-3.37-1.34-.46-1.16-1.12-1.47-1.12-1.47-.91-.62.07-.61.07-.61 1 .07 1.53 1.03 1.53 1.03.9 1.53 2.35 1.09 2.92.83.09-.65.35-1.09.63-1.34-2.22-.25-4.55-1.11-4.55-4.95 0-1.09.39-1.98 1.03-2.68-.1-.26-.45-1.28.1-2.66 0 0 .84-.27 2.75 1.02A9.58 9.58 0 0 1 12 6.8c.85 0 1.71.11 2.51.34 1.91-1.29 2.75-1.02 2.75-1.02.55 1.38.2 2.4.1 2.66.64.7 1.03 1.59 1.03 2.68 0 3.85-2.33 4.7-4.56 4.95.36.31.68.93.68 1.88v2.79c0 .26.18.58.69.48A10 10 0 0 0 12 2Z"
+                      />
+                    </svg>
+                  </span>
+                  <span data-i18n="hero.ctaSecondary">查看 GitHub</span>
+                </span>
+                <span class="btn-sub" data-i18n="hero.ctaSecondarySub">源码 · Issue · Roadmap</span>
+              </a>
+            </div>
+
+            <div class="meta-row">
+              <div class="pill concave" role="note">
+                <span class="pill-dot" style="background: var(--success)" aria-hidden="true"></span>
+                <span data-i18n="hero.meta1">本地存储会议记录</span>
+              </div>
+              <div class="pill concave" role="note">
+                <span class="pill-dot" style="background: var(--info)" aria-hidden="true"></span>
+                <span data-i18n="hero.meta2">OpenAI 兼容接口</span>
+              </div>
+              <div class="pill concave" role="note">
+                <span class="pill-dot" style="background: var(--warning)" aria-hidden="true"></span>
+                <span data-i18n="hero.meta3">支持长录音分段</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="hero-right" aria-label="Product preview">
+            <div class="preview-grid">
+              <figure class="shot convex">
+                <img src="assets/home.png" alt="首页：会议列表" loading="lazy" />
+                <figcaption data-i18n="shots.home">会议列表</figcaption>
+              </figure>
+              <figure class="shot convex">
+                <img src="assets/record.jpg" alt="录音页：准备与录音" loading="lazy" />
+                <figcaption data-i18n="shots.record">录音</figcaption>
+              </figure>
+              <figure class="shot convex">
+                <img src="assets/summary.jpg" alt="详情页：AI 总结" loading="lazy" />
+                <figcaption data-i18n="shots.summary">总结</figcaption>
+              </figure>
+              <figure class="shot convex">
+                <img src="assets/settings.png" alt="设置页：API 配置" loading="lazy" />
+                <figcaption data-i18n="shots.settings">设置</figcaption>
+              </figure>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Showcase -->
+      <section class="section" id="showcase">
+        <div class="container">
+          <div class="section-head">
+            <h2 class="h2" data-i18n="showcase.title">产品截图</h2>
+            <p class="sub" data-i18n="showcase.desc">轻拟物界面：用凹凸表达层级，让信息更耐看。</p>
+          </div>
+
+          <div class="carousel" role="region" aria-label="Screenshots">
+            <div class="carousel-track">
+              <figure class="card convex snap">
+                <img src="assets/home.png" alt="首页截图" loading="lazy" />
+                <figcaption>
+                  <span class="cap" data-i18n="showcase.home">首页：会议列表</span>
+                  <span class="cap-sub" data-i18n="showcase.homeSub">状态清晰，快速回顾</span>
+                </figcaption>
+              </figure>
+
+              <figure class="card convex snap">
+                <img src="assets/recording.jpg" alt="录音中截图" loading="lazy" />
+                <figcaption>
+                  <span class="cap" data-i18n="showcase.recording">录音中</span>
+                  <span class="cap-sub" data-i18n="showcase.recordingSub">脉冲动效反馈采集中</span>
+                </figcaption>
+              </figure>
+
+              <figure class="card convex snap">
+                <img src="assets/summary.jpg" alt="总结截图" loading="lazy" />
+                <figcaption>
+                  <span class="cap" data-i18n="showcase.summary">总结</span>
+                  <span class="cap-sub" data-i18n="showcase.summarySub">Markdown 结构化呈现</span>
+                </figcaption>
+              </figure>
+
+              <figure class="card convex snap">
+                <img src="assets/transcript.jpg" alt="原文截图" loading="lazy" />
+                <figcaption>
+                  <span class="cap" data-i18n="showcase.transcript">原文</span>
+                  <span class="cap-sub" data-i18n="showcase.transcriptSub">可编辑并重新生成总结</span>
+                </figcaption>
+              </figure>
+
+              <figure class="card convex snap">
+                <img src="assets/settings.png" alt="设置截图" loading="lazy" />
+                <figcaption>
+                  <span class="cap" data-i18n="showcase.settings">设置</span>
+                  <span class="cap-sub" data-i18n="showcase.settingsSub">配置 STT · LLM · TTS</span>
+                </figcaption>
+              </figure>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Features -->
+      <section class="section" id="features">
+        <div class="container">
+          <div class="section-head">
+            <h2 class="h2" data-i18n="features.title">核心能力</h2>
+            <p class="sub" data-i18n="features.desc">从采集到输出，一条链路完成；同时保留可追溯的“原始证据”。</p>
+          </div>
+
+          <div class="feature-grid">
+            <article class="feature convex">
+              <div class="feature-icon concave" aria-hidden="true">
+                <svg viewBox="0 0 24 24" class="icon"><path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Zm6-3a6 6 0 0 1-12 0H4a8 8 0 0 0 7 7.93V22h2v-3.07A8 8 0 0 0 20 11h-2Z"/></svg>
+              </div>
+              <h3 class="h3" data-i18n="features.f1.title">长录音分段</h3>
+              <p class="p" data-i18n="features.f1.desc">每 5 分钟自动保存一段，支持任意时长录音，降低意外丢失风险。</p>
+            </article>
+
+            <article class="feature convex">
+              <div class="feature-icon concave" aria-hidden="true">
+                <svg viewBox="0 0 24 24" class="icon"><path d="M19 3H5c-1.1 0-2 .9-2 2v14l4-4h12c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2Z"/></svg>
+              </div>
+              <h3 class="h3" data-i18n="features.f2.title">语音转文字</h3>
+              <p class="p" data-i18n="features.f2.desc">支持 Whisper 及兼容接口，转录完成后可手动修正文案。</p>
+            </article>
+
+            <article class="feature convex">
+              <div class="feature-icon concave" aria-hidden="true">
+                <svg viewBox="0 0 24 24" class="icon"><path d="M12 2a7 7 0 0 0-7 7c0 2.38 1.19 4.48 3 5.74V22l4-2 4 2v-7.26A6.98 6.98 0 0 0 19 9a7 7 0 0 0-7-7Z"/></svg>
+              </div>
+              <h3 class="h3" data-i18n="features.f3.title">AI 总结</h3>
+              <p class="p" data-i18n="features.f3.desc">一键生成结构化总结，用于快读与复盘；原文作为可追溯来源。</p>
+            </article>
+
+            <article class="feature convex">
+              <div class="feature-icon concave" aria-hidden="true">
+                <svg viewBox="0 0 24 24" class="icon"><path d="M12 2a7 7 0 0 0-7 7v3H4a2 2 0 0 0-2 2v6h20v-6a2 2 0 0 0-2-2h-1V9a7 7 0 0 0-7-7Zm-5 10V9a5 5 0 0 1 10 0v3H7Z"/></svg>
+              </div>
+              <h3 class="h3" data-i18n="features.f4.title">本地存储</h3>
+              <p class="p" data-i18n="features.f4.desc">会议记录与配置持久化在本地，列表回顾快速、离线可查看。</p>
+            </article>
+
+            <article class="feature convex">
+              <div class="feature-icon concave" aria-hidden="true">
+                <svg viewBox="0 0 24 24" class="icon"><path d="M14 3H5a2 2 0 0 0-2 2v14h2V5h9V3Zm5 4H9a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2Zm0 16H9V9h10v14Z"/></svg>
+              </div>
+              <h3 class="h3" data-i18n="features.f5.title">复制与分享</h3>
+              <p class="p" data-i18n="features.f5.desc">总结与原文可一键复制或分享，方便同步到协作工具与文档。</p>
+            </article>
+
+            <article class="feature convex">
+              <div class="feature-icon concave" aria-hidden="true">
+                <svg viewBox="0 0 24 24" class="icon"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25Zm18-11.5a1 1 0 0 0 0-1.41l-1.34-1.34a1 1 0 0 0-1.41 0l-1.13 1.13 3.75 3.75L21 5.75Z"/></svg>
+              </div>
+              <h3 class="h3" data-i18n="features.f6.title">可编辑原文</h3>
+              <p class="p" data-i18n="features.f6.desc">修正识别错误后重新生成总结，让最终输出更可靠、更贴近真实会议。</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- How it works -->
+      <section class="section" id="how">
+        <div class="container">
+          <div class="section-head">
+            <h2 class="h2" data-i18n="how.title">如何使用</h2>
+            <p class="sub" data-i18n="how.desc">三步完成：配置 → 录音 → 回顾与输出。</p>
+          </div>
+
+          <div class="steps">
+            <div class="step convex">
+              <div class="step-badge concave" aria-hidden="true">1</div>
+              <div class="step-body">
+                <h3 class="h3" data-i18n="how.s1.title">配置 API</h3>
+                <p class="p" data-i18n="how.s1.desc">在设置页填入 STT 与 LLM 的 Key；可选配置 TTS 朗读总结。</p>
+              </div>
+            </div>
+
+            <div class="step convex">
+              <div class="step-badge concave" aria-hidden="true">2</div>
+              <div class="step-body">
+                <h3 class="h3" data-i18n="how.s2.title">开始录音</h3>
+                <p class="p" data-i18n="how.s2.desc">点击麦克风开始采集；长会议自动分段保存，安心记录。</p>
+              </div>
+            </div>
+
+            <div class="step convex">
+              <div class="step-badge concave" aria-hidden="true">3</div>
+              <div class="step-body">
+                <h3 class="h3" data-i18n="how.s3.title">生成总结并回顾</h3>
+                <p class="p" data-i18n="how.s3.desc">转录 + 总结完成后，在详情页查看；原文可编辑并重新生成总结。</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="how-cta">
+            <div class="how-callout concave">
+              <div class="how-callout-dot" aria-hidden="true"></div>
+              <div>
+                <div class="how-callout-title" data-i18n="how.calloutTitle">你真正需要的是“可追溯的总结”</div>
+                <div class="how-callout-sub" data-i18n="how.calloutSub">总结用于快读，原文用于核对；两者缺一不可。</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Footer -->
+      <footer class="footer">
+        <div class="container footer-inner">
+          <div class="footer-left">
+            <div class="footer-brand">
+              <span class="footer-mark convex" aria-hidden="true">
+                <svg viewBox="0 0 24 24" class="icon"><path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Zm6-3a6 6 0 0 1-12 0H4a8 8 0 0 0 7 7.93V22h2v-3.07A8 8 0 0 0 20 11h-2Z"/></svg>
+              </span>
+              <div>
+                <div class="footer-name">MeetingAI</div>
+                <div class="footer-sub" data-i18n="footer.sub">会议录音助手 · Light Skeuomorphism</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="footer-right">
+            <a class="footer-link" href="#showcase" data-i18n="footer.link1">截图</a>
+            <a class="footer-link" href="#features" data-i18n="footer.link2">能力</a>
+            <a class="footer-link" href="#how" data-i18n="footer.link3">使用</a>
+            <a class="footer-link" href="https://github.com/Start-to-input/MeetingAI" target="_blank" rel="noreferrer" data-i18n="footer.link4">GitHub</a>
+          </div>
+
+          <div class="footer-bottom">
+            <span class="footer-copy" data-i18n="footer.copy">© MeetingAI. All rights reserved.</span>
+          </div>
+        </div>
+      </footer>
+    </main>
+
+    <script src="script.js" defer></script>
+  </body>
+</html>

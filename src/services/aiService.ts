@@ -1,7 +1,8 @@
 import axios from 'axios';
 import * as FileSystem from 'expo-file-system/legacy';
 import { AppSettings } from '../types';
-import { transcribeAudioLocal } from './localAsr';
+import { releaseLocalAsrModel, transcribeAudioLocal } from './localAsr';
+import { releaseLocalLlmModel, summarizeTextLocal } from './localLlm';
 
 // 文件大小限制 (25MB for OpenAI Whisper)
 // 新录音配置下：30分钟约10MB，60分钟约20MB，可支持约75分钟
@@ -226,6 +227,7 @@ export const transcribeAudio = async (
   settings: AppSettings
 ): Promise<string> => {
   if (settings.sttProvider === 'local_r2t2') {
+    await releaseLocalLlmModel();
     return transcribeAudioLocal(audioUri);
   }
   if (settings.sttProvider === 'assemblyai') {
@@ -235,11 +237,19 @@ export const transcribeAudio = async (
   return transcribeAudioWhisper(audioUri, settings);
 };
 
-// 2. 大模型总结 (LLM) - JSON
+export const isLlmConfigured = (settings: AppSettings): boolean => (
+  settings.llmProvider === 'local_qwen38' || Boolean(settings.llmApiKey?.trim())
+);
+
+// 2. 大模型总结 (LLM)
 export const summarizeText = async (
   text: string,
   settings: AppSettings
 ): Promise<string> => {
+  if (settings.llmProvider === 'local_qwen38') {
+    return summarizeTextLocal(text, settings.systemPrompt);
+  }
+
   const messages = [
     {
       role: 'system',
@@ -341,7 +351,7 @@ export const processMeeting = async (
 
   // 2. 总结（可选：没有 LLM API Key 时保留转录结果）
   let summary = '';
-  if (settings.llmApiKey?.trim()) {
+  if (isLlmConfigured(settings)) {
     onProgress?.('summarizing');
     summary = await summarizeText(transcript, settings);
   }
@@ -434,7 +444,7 @@ export const processSegmentedMeeting = async (
 
   // 2. 总结（可选：没有 LLM API Key 时保留转录结果）
   let summary = '';
-  if (settings.llmApiKey?.trim()) {
+  if (isLlmConfigured(settings)) {
     onProgress?.('summarizing');
     summary = await summarizeText(transcript, settings);
   }

@@ -26,7 +26,7 @@ import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as Clipboard from 'expo-clipboard';
 import { useMeetingStore, useSettingsStore } from '../store';
-import { audioRecorder, processMeeting, summarizeText, textToSpeech } from '../services';
+import { audioRecorder, isLlmConfigured, processMeeting, summarizeText, textToSpeech } from '../services';
 import { formatDate, formatDuration, skeuColors, skeuStyles } from '../utils';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
@@ -124,7 +124,7 @@ export const DetailScreen: React.FC<{ route: any; navigation: any }> = ({
     }
 
     setIsProcessing(true);
-    const hasLlm = Boolean(settings.llmApiKey?.trim());
+    const hasLlm = isLlmConfigured(settings);
     let completedMessage = '处理完成';
 
     try {

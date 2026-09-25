@@ -3,6 +3,9 @@
 // STT Provider 类型
 export type SttProvider = 'whisper' | 'assemblyai' | 'local_r2t2';
 
+// LLM Provider 类型
+export type LlmProvider = 'cloud' | 'local_qwen38';
+
 // 1. 用户自定义配置 (保存在本地)
 export interface AppSettings {
   // STT (语音转文字)
@@ -12,6 +15,7 @@ export interface AppSettings {
   sttModel: string;   // 例如: whisper-1 或 fun-asr
 
   // LLM (总结)
+  llmProvider: LlmProvider;
   llmBaseUrl: string; // 例如: https://api.deepseek.com/v1
   llmApiKey: string;
   llmModel: string;   // 例如: gpt-4o, deepseek-chat
@@ -45,6 +49,7 @@ export const defaultSettings: AppSettings = {
   sttApiKey: '',
   sttModel: 'whisper-1',
 
+  llmProvider: 'cloud',
   llmBaseUrl: 'https://api.openai.com/v1',
   llmApiKey: '',
   llmModel: 'gpt-4o-mini',

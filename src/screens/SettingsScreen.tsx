@@ -14,10 +14,11 @@ import {
   Text,
 } from 'react-native-paper';
 import { useSettingsStore } from '../store';
-import { defaultSettings, SttProvider } from '../types';
+import { defaultSettings, LlmProvider, SttProvider } from '../types';
 import { skeuColors, skeuStyles } from '../utils';
 import { SkeuDialog } from '../components';
-import { ensureLocalAsrModel } from '../services/localAsr';
+import { ensureLocalAsrModel, releaseLocalAsrModel } from '../services/localAsr';
+import { ensureLocalLlmModel, releaseLocalLlmModel } from '../services/localLlm';
 
 export const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const theme = useTheme();
@@ -29,6 +30,7 @@ export const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
   const [showLlmKey, setShowLlmKey] = useState(false);
   const [showTtsKey, setShowTtsKey] = useState(false);
   const [localModelStatus, setLocalModelStatus] = useState('');
+  const [localLlmStatus, setLocalLlmStatus] = useState('');
 
   const [saveSuccessVisible, setSaveSuccessVisible] = useState(false);
   const [resetDialogVisible, setResetDialogVisible] = useState(false);
@@ -54,6 +56,7 @@ export const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
       return;
     }
     try {
+      await releaseLocalLlmModel();
       setLocalModelStatus('正在下载或加载模型…');
       await ensureLocalAsrModel({
         onProgress: (progress, stage) => {
@@ -65,6 +68,26 @@ export const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
     } catch (error: any) {
       setLocalModelStatus('');
       Alert.alert('本地 ASR 初始化失败', error?.message || '请检查存储空间后重试');
+    }
+  };
+
+  const handlePrepareLocalLlmModel = async () => {
+    if (Platform.OS === 'web') {
+      Alert.alert('暂不支持', '本地 LLM 需要 iOS 或 Android 原生构建。');
+      return;
+    }
+    try {
+      await releaseLocalAsrModel();
+      setLocalLlmStatus('正在下载或加载 Qwen3.8…');
+      await ensureLocalLlmModel({
+        onProgress: (progress) => {
+          setLocalLlmStatus(`Qwen3.8 ${(progress * 100).toFixed(0)}%`);
+        },
+      });
+      setLocalLlmStatus('Qwen3.8 已就绪，可离线总结');
+    } catch (error: any) {
+      setLocalLlmStatus('');
+      Alert.alert('本地 LLM 初始化失败', error?.message || '请检查存储空间后重试');
     }
   };
 
@@ -234,60 +257,114 @@ export const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
         <View style={styles.card}>
           <Title style={styles.cardTitle}>大语言模型 (LLM) - 可选</Title>
           <HelperText type="info" style={styles.helperText}>
-            用于生成会议总结；留空时仍可完成本地转录。支持 OpenAI、DeepSeek、Groq 等兼容接口
+            用于生成会议总结；留空时仍可完成本地转录。可选择云端兼容接口或本地 Qwen3.8
           </HelperText>
 
-          <View style={styles.inputWrapper}>
-            <TextInput
-              label="Base URL"
-              value={localSettings.llmBaseUrl}
-              onChangeText={(v) => updateField('llmBaseUrl', v)}
-              mode="flat"
-              style={styles.input}
-              placeholder="https://api.openai.com/v1"
-              underlineColor="transparent"
-              activeUnderlineColor={skeuColors.primary}
-              textColor={skeuColors.textPrimary}
-              placeholderTextColor={skeuColors.textMuted}
+          <HelperText type="info" style={styles.providerHelperText}>
+            选择总结运行位置
+          </HelperText>
+          <View style={styles.segmentedContainer}>
+            <SegmentedButtons
+              value={localSettings.llmProvider || 'cloud'}
+              onValueChange={(value) => {
+                const provider = value as LlmProvider;
+                setLocalSettings((prev) => ({
+                  ...prev,
+                  llmProvider: provider,
+                  llmModel: provider === 'local_qwen38'
+                    ? 'Qwen3.8-2B-Q5_K_M.gguf'
+                    : 'gpt-4o-mini',
+                }));
+              }}
+              buttons={[
+                { value: 'cloud', label: '云端 API' },
+                { value: 'local_qwen38', label: '本地 Qwen3.8' },
+              ]}
+              style={styles.segmentedButtons}
+              theme={{
+                colors: {
+                  secondaryContainer: skeuColors.primary,
+                  onSecondaryContainer: '#FFFFFF',
+                },
+              }}
             />
           </View>
 
-          <View style={styles.inputWrapper}>
-            <TextInput
-              label="API Key"
-              value={localSettings.llmApiKey}
-              onChangeText={(v) => updateField('llmApiKey', v)}
-              mode="flat"
-              style={styles.input}
-              secureTextEntry={!showLlmKey}
-              underlineColor="transparent"
-              activeUnderlineColor={skeuColors.primary}
-              textColor={skeuColors.textPrimary}
-              placeholderTextColor={skeuColors.textMuted}
-              right={
-                <TextInput.Icon
-                  icon={showLlmKey ? 'eye-off' : 'eye'}
-                  onPress={() => setShowLlmKey(!showLlmKey)}
-                  color={skeuColors.textSecondary}
+          {localSettings.llmProvider === 'local_qwen38' ? (
+            <View style={styles.localAsrBox}>
+              <Text style={styles.localAsrText}>
+                使用 Qwen3.8-2B Q5_K_M，模型约 1.45GB。模型下载并加载后可在手机本地生成会议总结，不需要 API Key。
+              </Text>
+              <Button
+                mode="contained"
+                onPress={handlePrepareLocalLlmModel}
+                style={styles.localAsrButton}
+                buttonColor={skeuColors.primary}
+                textColor="#FFFFFF"
+              >
+                下载并加载本地 Qwen3.8
+              </Button>
+              {!!localLlmStatus && (
+                <HelperText type="info" style={styles.helperText}>
+                  {localLlmStatus}
+                </HelperText>
+              )}
+            </View>
+          ) : (
+            <>
+              <View style={styles.inputWrapper}>
+                <TextInput
+                  label="Base URL"
+                  value={localSettings.llmBaseUrl}
+                  onChangeText={(v) => updateField('llmBaseUrl', v)}
+                  mode="flat"
+                  style={styles.input}
+                  placeholder="https://api.openai.com/v1"
+                  underlineColor="transparent"
+                  activeUnderlineColor={skeuColors.primary}
+                  textColor={skeuColors.textPrimary}
+                  placeholderTextColor={skeuColors.textMuted}
                 />
-              }
-            />
-          </View>
+              </View>
 
-          <View style={styles.inputWrapper}>
-            <TextInput
-              label="模型名称"
-              value={localSettings.llmModel}
-              onChangeText={(v) => updateField('llmModel', v)}
-              mode="flat"
-              style={styles.input}
-              placeholder="gpt-4o-mini"
-              underlineColor="transparent"
-              activeUnderlineColor={skeuColors.primary}
-              textColor={skeuColors.textPrimary}
-              placeholderTextColor={skeuColors.textMuted}
-            />
-          </View>
+              <View style={styles.inputWrapper}>
+                <TextInput
+                  label="API Key"
+                  value={localSettings.llmApiKey}
+                  onChangeText={(v) => updateField('llmApiKey', v)}
+                  mode="flat"
+                  style={styles.input}
+                  secureTextEntry={!showLlmKey}
+                  underlineColor="transparent"
+                  activeUnderlineColor={skeuColors.primary}
+                  textColor={skeuColors.textPrimary}
+                  placeholderTextColor={skeuColors.textMuted}
+                  right={
+                    <TextInput.Icon
+                      icon={showLlmKey ? 'eye-off' : 'eye'}
+                      onPress={() => setShowLlmKey(!showLlmKey)}
+                      color={skeuColors.textSecondary}
+                    />
+                  }
+                />
+              </View>
+
+              <View style={styles.inputWrapper}>
+                <TextInput
+                  label="模型名称"
+                  value={localSettings.llmModel}
+                  onChangeText={(v) => updateField('llmModel', v)}
+                  mode="flat"
+                  style={styles.input}
+                  placeholder="gpt-4o-mini"
+                  underlineColor="transparent"
+                  activeUnderlineColor={skeuColors.primary}
+                  textColor={skeuColors.textPrimary}
+                  placeholderTextColor={skeuColors.textMuted}
+                />
+              </View>
+            </>
+          )}
 
           <View style={styles.inputWrapper}>
             <TextInput

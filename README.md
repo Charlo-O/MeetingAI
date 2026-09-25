@@ -9,7 +9,7 @@
 
 - **录音功能**: 使用 expo-av 录制高质量 m4a 格式音频
 - **语音转文字 (STT)**: 支持 OpenAI Whisper、AssemblyAI，以及基于 llama.rn 的本地 Confucius4-R2T2
-- **智能总结 (LLM)**: 可选，支持 OpenAI、DeepSeek、Groq 等兼容接口
+- **智能总结 (LLM)**: 可选，支持云端 OpenAI 兼容接口，以及基于 llama.rn 的本地 Qwen3.8
 - **语音合成 (TTS)**: 可选功能，朗读总结内容
 - **本地存储**: 使用 AsyncStorage 持久化会议记录和设置
 - **Markdown 渲染**: 美观展示 AI 生成的总结
@@ -65,9 +65,9 @@ App 只包含会议录音、转录、总结和设置等业务页面。Expo Web �
   - Model: `whisper-1`
 
 - **LLM (大语言模型)** - 可选，留空时仍可完成转录
-  - Base URL: `https://api.openai.com/v1` 或其他兼容接口
-  - API Key: 你的 API Key（可留空）
-  - Model: `gpt-4o-mini` 或其他模型
+  - 云端模式：Base URL、API Key、Model 使用 OpenAI 兼容接口配置
+  - 本地模式：选择“本地 Qwen3.8”，无需 API Key，首次下载约 1.45GB 的 `Qwen3.8-2B-Q5_K_M.gguf`
+  - 本地模式使用手机上的 llama.rn 推理，模型和会议文本不会上传
 
 - **TTS (语音合成)** - 可选
   - Base URL: `https://api.openai.com/v1`
@@ -79,6 +79,12 @@ App 只包含会议录音、转录、总结和设置等业务页面。Expo Web �
   - 在设置中选择“本地 R2T2”。
   - 点击“下载并加载本地模型”，应用会从 ModelScope 下载 Q8_0 主模型和 mmproj，约占 2.2GB。
   - 模型和音频都在手机本地处理；录音不会上传。
+  - 该能力需要 `npx expo run:android` 或 EAS 原生构建，Expo Web 不支持 llama.rn。
+
+- **本地 Qwen3.8（无需 LLM API Key）**
+  - 在设置中选择“本地 Qwen3.8”。
+  - 点击“下载并加载本地 Qwen3.8”，应用会从 ModelScope 下载 `Qwen3.8-2B-Q5_K_M.gguf`。
+  - 总结时会先释放本地 R2T2，再加载 Qwen3.8，降低 Android 真机内存峰值。
   - 该能力需要 `npx expo run:android` 或 EAS 原生构建，Expo Web 不支持 llama.rn。
 
 ## 兼容的 API 服务
@@ -117,7 +123,10 @@ src/
 │   ├── audioService.ts     # 录音服务
 │   ├── localAsr.native.ts  # llama.rn + R2T2 本地 ASR
 │   ├── localAsr.web.ts     # Web 端能力提示
-│   └── localAsr.ts         # 平台无关接口
+│   ├── localAsr.ts         # 平台无关接口
+│   ├── localLlm.native.ts  # llama.rn + Qwen3.8 本地总结
+│   ├── localLlm.web.ts     # Web 端能力提示
+│   └── localLlm.ts         # 平台无关接口
 ├── utils/          # 工具函数
 ├── navigation/     # 导航配置
 └── types.ts        # TypeScript 类型定义

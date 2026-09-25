@@ -17,6 +17,7 @@ import { useSettingsStore } from '../store';
 import { defaultSettings, SttProvider } from '../types';
 import { skeuColors, skeuStyles } from '../utils';
 import { SkeuDialog } from '../components';
+import { ensureLocalAsrModel } from '../services/localAsr';
 
 export const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const theme = useTheme();
@@ -27,6 +28,7 @@ export const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
   const [showSttKey, setShowSttKey] = useState(false);
   const [showLlmKey, setShowLlmKey] = useState(false);
   const [showTtsKey, setShowTtsKey] = useState(false);
+  const [localModelStatus, setLocalModelStatus] = useState('');
 
   const [saveSuccessVisible, setSaveSuccessVisible] = useState(false);
   const [resetDialogVisible, setResetDialogVisible] = useState(false);
@@ -44,6 +46,26 @@ export const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
 
   const handleReset = () => {
     setResetDialogVisible(true);
+  };
+
+  const handlePrepareLocalModel = async () => {
+    if (Platform.OS === 'web') {
+      Alert.alert('暂不支持', '本地 ASR 需要 iOS 或 Android 原生构建。');
+      return;
+    }
+    try {
+      setLocalModelStatus('正在下载或加载模型…');
+      await ensureLocalAsrModel({
+        onProgress: (progress, stage) => {
+          const name = stage === 'model' ? '主模型' : '音频投影';
+          setLocalModelStatus(`${name} ${(progress * 100).toFixed(0)}%`);
+        },
+      });
+      setLocalModelStatus('模型已就绪，可离线转写');
+    } catch (error: any) {
+      setLocalModelStatus('');
+      Alert.alert('本地 ASR 初始化失败', error?.message || '请检查存储空间后重试');
+    }
   };
 
   const updateField = (field: string, value: string) => {
@@ -82,15 +104,20 @@ export const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                   ...prev,
                   sttProvider: provider,
                   // 切换时自动设置默认值
-                  sttBaseUrl: provider === 'assemblyai'
-                    ? '' // AssemblyAI 不需要 Base URL
+                  sttBaseUrl: provider === 'assemblyai' || provider === 'local_r2t2'
+                    ? '' // 本地和 AssemblyAI 都不需要 Base URL
                     : 'https://api.openai.com/v1',
-                  sttModel: provider === 'assemblyai' ? '' : 'whisper-1',
+                  sttModel: provider === 'assemblyai'
+                    ? ''
+                    : provider === 'local_r2t2'
+                      ? 'Confucius4-R2T2-Q8_0'
+                      : 'whisper-1',
                 }));
               }}
               buttons={[
                 { value: 'whisper', label: 'Whisper' },
                 { value: 'assemblyai', label: 'AssemblyAI' },
+                { value: 'local_r2t2', label: '本地 R2T2' },
               ]}
               style={styles.segmentedButtons}
               theme={{
@@ -105,12 +132,36 @@ export const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
           <HelperText type="info" style={styles.helperText}>
             {localSettings.sttProvider === 'assemblyai'
               ? '✅ AssemblyAI 免费额度: 每月 5 小时。仅需 API Key，无需设置 Base URL'
+              : localSettings.sttProvider === 'local_r2t2'
+                ? '✅ Confucius4-R2T2 + llama.rn：模型下载到手机后离线运行，不需要 API Key。首次需要约 2.2GB 空间。'
               : '支持 OpenAI Whisper 及兼容接口。推荐：Groq (api.groq.com/openai/v1)'
             }
           </HelperText>
 
+          {localSettings.sttProvider === 'local_r2t2' && (
+            <View style={styles.localAsrBox}>
+              <Text style={styles.localAsrText}>
+                使用 Q8_0 主模型和 mmproj 音频投影文件。录音会在手机本地转换为 16kHz WAV 后交给 llama.rn。
+              </Text>
+              <Button
+                mode="contained"
+                onPress={handlePrepareLocalModel}
+                style={styles.localAsrButton}
+                buttonColor={skeuColors.primary}
+                textColor="#FFFFFF"
+              >
+                下载并加载本地模型
+              </Button>
+              {!!localModelStatus && (
+                <HelperText type="info" style={styles.helperText}>
+                  {localModelStatus}
+                </HelperText>
+              )}
+            </View>
+          )}
+
           {/* Whisper 才显示 Base URL */}
-          {localSettings.sttProvider !== 'assemblyai' && (
+          {localSettings.sttProvider !== 'assemblyai' && localSettings.sttProvider !== 'local_r2t2' && (
             <View style={styles.inputWrapper}>
               <TextInput
                 label="Base URL"
@@ -127,7 +178,7 @@ export const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
             </View>
           )}
 
-          <View style={styles.inputWrapper}>
+          {localSettings.sttProvider !== 'local_r2t2' && <View style={styles.inputWrapper}>
             <TextInput
               label="API Key"
               value={localSettings.sttApiKey}
@@ -148,10 +199,10 @@ export const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                 />
               }
             />
-          </View>
+          </View>}
 
           {/* Whisper 才显示模型名称 */}
-          {localSettings.sttProvider !== 'assemblyai' && (
+          {localSettings.sttProvider === 'whisper' && (
             <>
               <View style={styles.inputWrapper}>
                 <TextInput
@@ -181,9 +232,9 @@ export const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
 
         {/* LLM 配置 */}
         <View style={styles.card}>
-          <Title style={styles.cardTitle}>大语言模型 (LLM)</Title>
+          <Title style={styles.cardTitle}>大语言模型 (LLM) - 可选</Title>
           <HelperText type="info" style={styles.helperText}>
-            支持 OpenAI、DeepSeek、Groq 等兼容接口
+            用于生成会议总结；留空时仍可完成本地转录。支持 OpenAI、DeepSeek、Groq 等兼容接口
           </HelperText>
 
           <View style={styles.inputWrapper}>
@@ -259,7 +310,7 @@ export const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
         <View style={styles.card}>
           <Title style={styles.cardTitle}>语音合成 (TTS) - 可选</Title>
           <HelperText type="info" style={styles.helperText}>
-            用于朗读总结内容
+            用于朗读总结内容；可留空，不影响录音和转录
           </HelperText>
 
           <View style={styles.inputWrapper}>
@@ -449,6 +500,20 @@ const styles = StyleSheet.create({
   },
   segmentedButtons: {
     backgroundColor: 'transparent',
+  },
+  localAsrBox: {
+    marginTop: 8,
+    padding: 16,
+    borderRadius: 12,
+    backgroundColor: '#EEF4FF',
+  },
+  localAsrText: {
+    color: skeuColors.textSecondary,
+    lineHeight: 20,
+    marginBottom: 12,
+  },
+  localAsrButton: {
+    borderRadius: 10,
   },
   inputWrapper: {
     marginTop: 16,

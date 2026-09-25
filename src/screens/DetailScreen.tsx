@@ -26,7 +26,7 @@ import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as Clipboard from 'expo-clipboard';
 import { useMeetingStore, useSettingsStore } from '../store';
-import { audioRecorder, processMeeting, textToSpeech } from '../services';
+import { audioRecorder, processMeeting, summarizeText, textToSpeech } from '../services';
 import { formatDate, formatDuration, skeuColors, skeuStyles } from '../utils';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
@@ -124,21 +124,23 @@ export const DetailScreen: React.FC<{ route: any; navigation: any }> = ({
     }
 
     setIsProcessing(true);
+    const hasLlm = Boolean(settings.llmApiKey?.trim());
+    let completedMessage = '处理完成';
 
     try {
       if (isEditing && editedTranscript !== meeting.transcript) {
         updateMeeting(meetingId, {
           transcript: editedTranscript,
-          status: 'summarizing',
+          status: hasLlm ? 'summarizing' : 'done',
         });
 
-        const { summarizeText } = await import('../services/aiService');
-        const summary = await summarizeText(editedTranscript, settings);
+        const summary = hasLlm ? await summarizeText(editedTranscript, settings) : '';
 
         updateMeeting(meetingId, {
           summary,
           status: 'done',
         });
+        if (!hasLlm) completedMessage = '原文已保存，未配置 LLM，已跳过总结';
       } else {
         updateMeeting(meetingId, { status: 'transcribing' });
 
@@ -153,10 +155,11 @@ export const DetailScreen: React.FC<{ route: any; navigation: any }> = ({
         });
 
         setEditedTranscript(result.transcript);
+        if (!hasLlm) completedMessage = '转录完成，未配置 LLM，已跳过总结';
       }
 
       setIsEditing(false);
-      showSnackbar('处理完成');
+      showSnackbar(completedMessage);
     } catch (error: any) {
       updateMeeting(meetingId, {
         status: 'error',

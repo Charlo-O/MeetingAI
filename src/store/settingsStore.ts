@@ -15,10 +15,10 @@ export const useSettingsStore = create<SettingsStore>()(
     (set, get) => ({
       settings: defaultSettings,
       
-      // 检查是否已配置必要的 API Key
+      // 录音只依赖 STT；LLM 总结和 TTS 都是可选能力
       isConfigured: () => {
         const { settings } = get();
-        return !!(settings.sttApiKey && settings.llmApiKey);
+        return settings.sttProvider === 'local_r2t2' || !!settings.sttApiKey?.trim();
       },
       
       updateSettings: (partial) => {

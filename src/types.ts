@@ -1,7 +1,7 @@
 // types.ts
 
 // STT Provider 类型
-export type SttProvider = 'whisper' | 'assemblyai';
+export type SttProvider = 'whisper' | 'assemblyai' | 'local_r2t2';
 
 // 1. 用户自定义配置 (保存在本地)
 export interface AppSettings {

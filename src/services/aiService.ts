@@ -1,6 +1,7 @@
 import axios from 'axios';
 import * as FileSystem from 'expo-file-system/legacy';
 import { AppSettings } from '../types';
+import { transcribeAudioLocal } from './localAsr';
 
 // 文件大小限制 (25MB for OpenAI Whisper)
 // 新录音配置下：30分钟约10MB，60分钟约20MB，可支持约75分钟
@@ -224,6 +225,9 @@ export const transcribeAudio = async (
   audioUri: string,
   settings: AppSettings
 ): Promise<string> => {
+  if (settings.sttProvider === 'local_r2t2') {
+    return transcribeAudioLocal(audioUri);
+  }
   if (settings.sttProvider === 'assemblyai') {
     return transcribeAudioAssemblyAI(audioUri, settings);
   }
@@ -279,6 +283,10 @@ export const textToSpeech = async (
   settings: AppSettings,
   savePath: string
 ): Promise<string> => {
+  if (!settings.ttsApiKey?.trim()) {
+    throw new Error('未配置 TTS API Key，已跳过语音合成');
+  }
+
   try {
     const baseUrl = settings.ttsBaseUrl.replace(/\/$/, '');
     const api = createAxiosInstance();
@@ -331,9 +339,12 @@ export const processMeeting = async (
   onProgress?.('transcribing');
   const transcript = await transcribeAudio(audioUri, settings);
 
-  // 2. 总结
-  onProgress?.('summarizing');
-  const summary = await summarizeText(transcript, settings);
+  // 2. 总结（可选：没有 LLM API Key 时保留转录结果）
+  let summary = '';
+  if (settings.llmApiKey?.trim()) {
+    onProgress?.('summarizing');
+    summary = await summarizeText(transcript, settings);
+  }
 
   return { transcript, summary };
 };
@@ -421,9 +432,12 @@ export const processSegmentedMeeting = async (
     (current, total) => onProgress?.('transcribing', current, total)
   );
 
-  // 2. 总结
-  onProgress?.('summarizing');
-  const summary = await summarizeText(transcript, settings);
+  // 2. 总结（可选：没有 LLM API Key 时保留转录结果）
+  let summary = '';
+  if (settings.llmApiKey?.trim()) {
+    onProgress?.('summarizing');
+    summary = await summarizeText(transcript, settings);
+  }
 
   return { transcript, summary };
 };

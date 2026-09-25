@@ -1,10 +1,10 @@
 import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { HomeScreen, RecordScreen, DetailScreen, SettingsScreen, LandingScreen } from '../screens';
+import { Platform } from 'react-native';
+import { HomeScreen, RecordScreen, DetailScreen, SettingsScreen } from '../screens';
 
 export type RootStackParamList = {
-  Landing: undefined;
   Home: undefined;
   Record: undefined;
   Detail: { meetingId: string };
@@ -12,8 +12,6 @@ export type RootStackParamList = {
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
-
-import { Platform } from 'react-native';
 
 const getPrefix = () => {
   if (Platform.OS === 'web' && typeof window !== 'undefined') {
@@ -23,7 +21,9 @@ const getPrefix = () => {
 };
 
 export const AppNavigator: React.FC = () => {
-  const isWeb = Platform.OS === 'web';
+  // The marketing site lives in /landing and is deployed separately.
+  // The Expo application always starts at the product workspace.
+  const homePath = Platform.OS === 'web' ? 'app' : '';
 
   return (
     <NavigationContainer
@@ -31,15 +31,7 @@ export const AppNavigator: React.FC = () => {
         prefixes: [getPrefix(), 'meetingai://'],
         config: {
           screens: {
-            ...(isWeb
-              ? {
-                  Landing: '',
-                  Home: 'app',
-                }
-              : {
-                  Home: '',
-                  Landing: 'landing',
-                }),
+            Home: homePath,
             Detail: 'detail/:meetingId',
             Settings: 'settings',
             Record: 'record',
@@ -48,12 +40,11 @@ export const AppNavigator: React.FC = () => {
       }}
     >
       <Stack.Navigator
-        initialRouteName={isWeb ? 'Landing' : 'Home'}
+        initialRouteName="Home"
         screenOptions={{
           headerShown: false,
         }}
       >
-        <Stack.Screen name="Landing" component={LandingScreen} />
         <Stack.Screen name="Home" component={HomeScreen} />
         <Stack.Screen
           name="Record"

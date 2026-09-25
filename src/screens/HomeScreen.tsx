@@ -43,8 +43,8 @@ export const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const handleRecordPress = () => {
     if (!isConfigured()) {
       Alert.alert(
-        '请先配置 API',
-        '您需要先配置 STT 和 LLM 的 API Key 才能使用录音功能',
+        '请先配置语音转文字',
+        '请先配置语音转文字（STT）服务。使用本地 R2T2 无需 API Key；LLM 总结和 TTS 都是可选功能。',
         [
           { text: '取消', style: 'cancel' },
           { text: '去设置', onPress: () => navigation.navigate('Settings') },

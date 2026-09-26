@@ -6,6 +6,8 @@ export type LocalAsrProgress = (progress: number, stage: 'model' | 'mmproj') => 
 
 export type LocalAsrOptions = {
   onProgress?: LocalAsrProgress;
+  /** Called with each decoded text chunk when the native model streams output. */
+  onToken?: (text: string) => void;
 };
 
 export const ensureLocalAsrModel = async (_options: LocalAsrOptions = {}): Promise<void> => {

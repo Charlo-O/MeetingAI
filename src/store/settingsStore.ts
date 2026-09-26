@@ -34,6 +34,15 @@ export const useSettingsStore = create<SettingsStore>()(
     {
       name: 'settings-storage',
       storage: createJSONStorage(() => AsyncStorage),
+      // Keep settings added in later releases available to existing installs.
+      merge: (persisted, current) => ({
+        ...current,
+        ...(persisted as Partial<SettingsStore>),
+        settings: {
+          ...current.settings,
+          ...((persisted as Partial<SettingsStore>)?.settings || {}),
+        },
+      }),
     }
   )
 );

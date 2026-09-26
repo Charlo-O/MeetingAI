@@ -193,6 +193,12 @@ export const transcribeAudioLocal = async (
       n_predict: 2048,
       temperature: 0,
       top_p: 1,
+    }, (data) => {
+      // llama.rn emits one TokenData event for every generated token. Keep the
+      // final cleanTranscript pass below as the source of truth; this callback
+      // only feeds the live preview while a segment is being recognized.
+      const chunk = data.content || data.token || '';
+      if (chunk) options.onToken?.(chunk);
     });
     return cleanTranscript(result.text || '');
   } finally {

@@ -13,10 +13,22 @@ const createAxiosInstance = (timeout = 300000) => {
   return axios.create({ timeout });
 };
 
+export type TranscribeAudioOptions = {
+  /** Receives incremental text for native streaming models. */
+  onToken?: (text: string) => void;
+};
+
+export type SegmentedMeetingOptions = TranscribeAudioOptions & {
+  /** Reuse segment jobs started while recording, avoiding duplicate inference. */
+  existingTranscripts?: Array<string | Promise<string> | undefined>;
+  onSegmentToken?: (segment: number, text: string) => void;
+};
+
 // ===== Whisper STT (OpenAI 兼容接口) =====
 const transcribeAudioWhisper = async (
   audioUri: string,
-  settings: AppSettings
+  settings: AppSettings,
+  options: TranscribeAudioOptions = {}
 ): Promise<string> => {
   // 获取文件信息
   const fileInfo = await FileSystem.getInfoAsync(audioUri);
@@ -83,7 +95,9 @@ const transcribeAudioWhisper = async (
     }
 
     const data = await response.json();
-    return data.text;
+    const transcript = data.text || '';
+    options.onToken?.(transcript);
+    return transcript;
   } catch (error: any) {
     console.error('❌ Whisper STT Error:', error);
 
@@ -207,7 +221,8 @@ const pollAssemblyAITranscript = async (
 // AssemblyAI 完整流程
 const transcribeAudioAssemblyAI = async (
   audioUri: string,
-  settings: AppSettings
+  settings: AppSettings,
+  options: TranscribeAudioOptions = {}
 ): Promise<string> => {
   // 步骤 1: 上传文件
   const uploadUrl = await uploadAudioToAssemblyAI(audioUri, settings.sttApiKey);
@@ -218,23 +233,25 @@ const transcribeAudioAssemblyAI = async (
   // 步骤 3: 轮询结果
   const transcript = await pollAssemblyAITranscript(transcriptId, settings.sttApiKey);
 
+  options.onToken?.(transcript);
   return transcript;
 };
 
 // ===== 统一的语音转文字接口 =====
 export const transcribeAudio = async (
   audioUri: string,
-  settings: AppSettings
+  settings: AppSettings,
+  options: TranscribeAudioOptions = {}
 ): Promise<string> => {
   if (settings.sttProvider === 'local_r2t2') {
     await releaseLocalLlmModel();
-    return transcribeAudioLocal(audioUri);
+    return transcribeAudioLocal(audioUri, options);
   }
   if (settings.sttProvider === 'assemblyai') {
-    return transcribeAudioAssemblyAI(audioUri, settings);
+    return transcribeAudioAssemblyAI(audioUri, settings, options);
   }
   // 默认使用 Whisper
-  return transcribeAudioWhisper(audioUri, settings);
+  return transcribeAudioWhisper(audioUri, settings, options);
 };
 
 export const isLlmConfigured = (settings: AppSettings): boolean => (
@@ -365,22 +382,43 @@ export const processMeeting = async (
 export const transcribeMultipleAudios = async (
   audioUris: string[],
   settings: AppSettings,
-  onProgress?: (current: number, total: number) => void
+  onProgress?: (current: number, total: number) => void,
+  options: SegmentedMeetingOptions = {}
 ): Promise<string> => {
   const transcripts: Array<{ segment: number; text: string; error?: string }> = [];
 
   for (let i = 0; i < audioUris.length; i++) {
     const uri = audioUris[i];
     const segmentNum = i + 1;
+    let transcript = '';
+
+    // 如果录音过程中已经开始转写，等待同一个 Promise，避免停止录音后重复跑模型。
+    const existing = options.existingTranscripts?.[i];
+    if (existing !== undefined) {
+      try {
+        transcript = typeof existing === 'string' ? existing : await existing;
+        transcripts.push({ segment: segmentNum, text: transcript });
+        onProgress?.(segmentNum, audioUris.length);
+        continue;
+      } catch (error: any) {
+        console.error(`[Transcribe] 第 ${segmentNum} 段后台任务失败，将按普通重试处理:`, error?.message);
+      }
+    }
 
     // 带重试的转录
-    let transcript = '';
     let lastError: Error | null = null;
 
     for (let attempt = 1; attempt <= 3; attempt++) {
       try {
         console.log(`[Transcribe] 开始转录第 ${segmentNum}/${audioUris.length} 段，尝试 ${attempt}/3`);
-        transcript = await transcribeAudio(uri, settings);
+        transcript = await transcribeAudio(uri, settings, {
+          onToken: options.onToken || options.onSegmentToken
+            ? (token) => {
+              options.onToken?.(token);
+              options.onSegmentToken?.(segmentNum, token);
+            }
+            : undefined,
+        });
         lastError = null;
         break; // 成功则退出重试循环
       } catch (error: any) {
@@ -432,14 +470,19 @@ export const transcribeMultipleAudios = async (
 export const processSegmentedMeeting = async (
   audioUris: string[],
   settings: AppSettings,
-  onProgress?: (status: 'transcribing' | 'summarizing', current?: number, total?: number) => void
+  onProgress?: (status: 'transcribing' | 'summarizing', current?: number, total?: number) => void,
+  options: SegmentedMeetingOptions = {}
 ): Promise<{ transcript: string; summary: string }> => {
   // 1. 批量转录
   onProgress?.('transcribing');
   const transcript = await transcribeMultipleAudios(
     audioUris,
     settings,
-    (current, total) => onProgress?.('transcribing', current, total)
+    (current, total) => onProgress?.('transcribing', current, total),
+    {
+      ...options,
+      onToken: options.onToken,
+    }
   );
 
   // 2. 总结（可选：没有 LLM API Key 时保留转录结果）

@@ -151,21 +151,36 @@ export class AudioRecorder {
 }
 
 // ===== 分段录音器 =====
-// 自动每 5 分钟保存一段，支持任意长时间录音
+// 自动保存切片。切片属于录音内部实现，轮转过程不会触发确认弹窗，也不会阻塞录音页。
 
-const SEGMENT_DURATION_MS = 5 * 60 * 1000; // 5 分钟
+const DEFAULT_SEGMENT_DURATION_MS = 5 * 60 * 1000;
+
+export type RecordedSegment = { uri: string; duration: number };
+export type SegmentCompleteListener = (
+  segment: RecordedSegment,
+  segmentNumber: number,
+  totalSegments: number
+) => void;
 
 export class SegmentedRecorder {
   private recording: Audio.Recording | null = null;
-  private segments: Array<{ uri: string; duration: number }> = [];
+  private segments: RecordedSegment[] = [];
   private segmentTimer: NodeJS.Timeout | null = null;
+  private rotatePromise: Promise<void> | null = null;
   private startTime: number = 0;
   private currentSegmentStart: number = 0;
-  private onSegmentComplete?: (segmentNumber: number, totalSegments: number) => void;
+  private segmentDurationMs = DEFAULT_SEGMENT_DURATION_MS;
+  private isStopping = false;
+  private onSegmentComplete?: SegmentCompleteListener;
+  private onSegmentError?: (error: Error) => void;
 
   // 设置分段完成回调
-  setOnSegmentComplete(callback: (segmentNumber: number, totalSegments: number) => void) {
+  setOnSegmentComplete(callback?: SegmentCompleteListener) {
     this.onSegmentComplete = callback;
+  }
+
+  setOnSegmentError(callback?: (error: Error) => void) {
+    this.onSegmentError = callback;
   }
 
   // 请求录音权限
@@ -180,7 +195,7 @@ export class SegmentedRecorder {
   }
 
   // 开始分段录音
-  async startRecording(): Promise<void> {
+  async startRecording(segmentDurationMinutes = 5): Promise<void> {
     try {
       const hasPermission = await this.requestPermissions();
       if (!hasPermission) {
@@ -188,6 +203,8 @@ export class SegmentedRecorder {
       }
 
       this.segments = [];
+      this.isStopping = false;
+      this.segmentDurationMs = Math.max(1, segmentDurationMinutes) * 60 * 1000;
       this.startTime = Date.now();
       this.currentSegmentStart = Date.now();
 
@@ -208,31 +225,42 @@ export class SegmentedRecorder {
     const { recording } = await Audio.Recording.createAsync(RECORDING_OPTIONS);
     this.recording = recording;
 
-    // 设置定时器，5分钟后自动保存当前段并开始新段
+    // 定时器只负责后台轮转；不弹窗、不切换页面。
     this.segmentTimer = setTimeout(() => {
-      this.saveCurrentSegmentAndContinue();
-    }, SEGMENT_DURATION_MS);
+      const rotation = this.saveCurrentSegmentAndContinue();
+      this.rotatePromise = rotation;
+      rotation
+        .catch((error) => {
+          console.error('Background segment rotation failed:', error);
+          this.onSegmentError?.(error instanceof Error ? error : new Error(String(error)));
+        })
+        .finally(() => {
+          if (this.rotatePromise === rotation) this.rotatePromise = null;
+        });
+    }, this.segmentDurationMs);
   }
 
   // 保存当前段并继续录音
   private async saveCurrentSegmentAndContinue(): Promise<void> {
-    if (!this.recording) return;
+    if (!this.recording || this.isStopping) return;
 
     try {
-      // 停止当前录音
-      await this.recording.stopAndUnloadAsync();
-      const uri = this.recording.getURI();
-      const status = await this.recording.getStatusAsync();
+      // 先摘出当前实例，防止用户同时点击“停止”时重复 stop。
+      const recording = this.recording;
+      this.recording = null;
+      await recording.stopAndUnloadAsync();
+      const uri = recording.getURI();
+      const status = await recording.getStatusAsync();
 
       if (uri) {
         const duration = Math.round((status.durationMillis || 0) / 1000);
-        this.segments.push({ uri, duration });
+        const segment = { uri, duration };
+        this.segments.push(segment);
 
-        // 通知 UI 更新
-        this.onSegmentComplete?.(this.segments.length, this.segments.length);
+        // 回调只报告已落盘的 URI；上层可以在后台开始流式转写。
+        this.onSegmentComplete?.(segment, this.segments.length, this.segments.length);
       }
 
-      this.recording = null;
       this.currentSegmentStart = Date.now();
 
       // 清除旧的定时器
@@ -241,48 +269,79 @@ export class SegmentedRecorder {
         this.segmentTimer = null;
       }
 
-      // 开始新的一段
-      await this.startNewSegment();
+      // 停止请求已经到达时，不再开启下一段。
+      if (!this.isStopping) {
+        await this.startNewSegment();
+      } else {
+        await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
+      }
     } catch (error) {
       console.error('Save segment and continue failed:', error);
+      // A failed rotation must not leave the user recording into a null
+      // recorder. Try to open a fresh segment so the recording can continue
+      // without a modal or a manual restart. The failed slice is reported to
+      // the screen and the final stop path can still process all saved slices.
+      if (!this.isStopping && !this.recording) {
+        if (this.segmentTimer) {
+          clearTimeout(this.segmentTimer);
+          this.segmentTimer = null;
+        }
+        try {
+          await this.startNewSegment();
+        } catch (restartError) {
+          console.error('Restart segment after rotation failure failed:', restartError);
+        }
+      }
       throw error;
     }
   }
 
   // 停止录音并返回所有段
   async stopRecording(): Promise<{ segments: Array<{ uri: string; duration: number }>; totalDuration: number }> {
+    this.isStopping = true;
+
     // 清除定时器
     if (this.segmentTimer) {
       clearTimeout(this.segmentTimer);
       this.segmentTimer = null;
     }
 
+    // 如果刚好在自动轮转，先等待轮转完成，避免漏段或新段孤儿文件。
+    if (this.rotatePromise) {
+      await this.rotatePromise;
+      this.rotatePromise = null;
+    }
+
     if (!this.recording) {
       // 如果没有正在录音，返回已有的段
       const totalDuration = this.segments.reduce((sum, seg) => sum + seg.duration, 0);
-      return { segments: this.segments, totalDuration };
+      this.startTime = 0;
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
+      return { segments: [...this.segments], totalDuration };
     }
 
     try {
       // 保存最后一段
-      await this.recording.stopAndUnloadAsync();
+      const recording = this.recording;
+      this.recording = null;
+      await recording.stopAndUnloadAsync();
 
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: false,
       });
 
-      const uri = this.recording.getURI();
-      const status = await this.recording.getStatusAsync();
+      const uri = recording.getURI();
+      const status = await recording.getStatusAsync();
 
       if (uri) {
         const duration = Math.round((status.durationMillis || 0) / 1000);
         this.segments.push({ uri, duration });
       }
 
-      this.recording = null;
-
       const totalDuration = this.segments.reduce((sum, seg) => sum + seg.duration, 0);
-      return { segments: this.segments, totalDuration };
+      this.startTime = 0;
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
+      return { segments: [...this.segments], totalDuration };
     } catch (error) {
       console.error('Stop segmented recording failed:', error);
       throw error;
@@ -320,6 +379,7 @@ export class SegmentedRecorder {
       }
     }
     this.segments = [];
+    this.startTime = 0;
   }
 }
 

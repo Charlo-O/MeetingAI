@@ -26,6 +26,12 @@ export interface AppSettings {
   ttsApiKey: string;
   ttsModel: string;   // 例如: tts-1
   ttsVoice: string;   // 例如: alloy, echo, fable, onyx, nova, shimmer
+
+  // 录音体验
+  // 这三项只描述录音时的默认行为，不会改变已经保存的会议记录。
+  recordingSegmentMinutes: number;
+  recordingAutoTranscribe: boolean;
+  recordingStreaming: boolean;
 }
 
 // 2. 单条会议记录
@@ -59,5 +65,9 @@ export const defaultSettings: AppSettings = {
   ttsApiKey: '',
   ttsModel: 'tts-1',
   ttsVoice: 'alloy',
+
+  recordingSegmentMinutes: 5,
+  recordingAutoTranscribe: true,
+  recordingStreaming: true,
 };
 

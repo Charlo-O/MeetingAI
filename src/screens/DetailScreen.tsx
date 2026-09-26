@@ -26,7 +26,14 @@ import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as Clipboard from 'expo-clipboard';
 import { useMeetingStore, useSettingsStore } from '../store';
-import { audioRecorder, isLlmConfigured, processMeeting, summarizeText, textToSpeech } from '../services';
+import {
+  audioRecorder,
+  isLlmConfigured,
+  processMeeting,
+  processSegmentedMeeting,
+  summarizeText,
+  textToSpeech,
+} from '../services';
 import { formatDate, formatDuration, skeuColors, skeuStyles } from '../utils';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
@@ -53,6 +60,7 @@ export const DetailScreen: React.FC<{ route: any; navigation: any }> = ({
   const [sound, setSound] = useState<Audio.Sound | null>(null);
   const [playbackPosition, setPlaybackPosition] = useState(0);
   const [playbackDuration, setPlaybackDuration] = useState(0);
+  const [playbackSegment, setPlaybackSegment] = useState(0);
 
   useEffect(() => {
     if (meeting) {
@@ -87,6 +95,49 @@ export const DetailScreen: React.FC<{ route: any; navigation: any }> = ({
     setSnackbarVisible(true);
   };
 
+  const getPlaybackUris = () => {
+    const segments = meeting.audioSegments?.filter(Boolean) || [];
+    return segments.length > 0 ? segments : [meeting.audioUri];
+  };
+
+  const playSegmentAt = async (segmentIndex: number) => {
+    const playbackUris = getPlaybackUris();
+    if (segmentIndex >= playbackUris.length) {
+      setIsPlaying(false);
+      setPlaybackSegment(0);
+      setSound(null);
+      return;
+    }
+
+    if (sound) {
+      await sound.unloadAsync().catch(() => undefined);
+      setSound(null);
+    }
+
+    const { sound: newSound } = await Audio.Sound.createAsync(
+      { uri: playbackUris[segmentIndex] },
+      { shouldPlay: true },
+      (status) => {
+        if (status.isLoaded) {
+          setPlaybackPosition(status.positionMillis);
+          setPlaybackDuration(status.durationMillis || 0);
+          if (status.didJustFinish) {
+            if (segmentIndex + 1 < playbackUris.length) {
+              void playSegmentAt(segmentIndex + 1);
+            } else {
+              setIsPlaying(false);
+              setPlaybackSegment(0);
+              setSound(null);
+            }
+          }
+        }
+      }
+    );
+    setSound(newSound);
+    setPlaybackSegment(segmentIndex);
+    setIsPlaying(true);
+  };
+
   const togglePlayback = async () => {
     try {
       if (isPlaying && sound) {
@@ -96,21 +147,7 @@ export const DetailScreen: React.FC<{ route: any; navigation: any }> = ({
         await sound.playAsync();
         setIsPlaying(true);
       } else {
-        const { sound: newSound } = await Audio.Sound.createAsync(
-          { uri: meeting.audioUri },
-          { shouldPlay: true },
-          (status) => {
-            if (status.isLoaded) {
-              setPlaybackPosition(status.positionMillis);
-              setPlaybackDuration(status.durationMillis || 0);
-              if (status.didJustFinish) {
-                setIsPlaying(false);
-              }
-            }
-          }
-        );
-        setSound(newSound);
-        setIsPlaying(true);
+        await playSegmentAt(playbackSegment);
       }
     } catch (error: any) {
       showSnackbar('播放失败: ' + error.message);
@@ -144,9 +181,14 @@ export const DetailScreen: React.FC<{ route: any; navigation: any }> = ({
       } else {
         updateMeeting(meetingId, { status: 'transcribing' });
 
-        const result = await processMeeting(meeting.audioUri, settings, (status) => {
-          updateMeeting(meetingId, { status });
-        });
+        const audioUris = meeting.audioSegments?.filter(Boolean) || [];
+        const result = audioUris.length > 1
+          ? await processSegmentedMeeting(audioUris, settings, (status) => {
+            updateMeeting(meetingId, { status });
+          })
+          : await processMeeting(meeting.audioUri, settings, (status) => {
+            updateMeeting(meetingId, { status });
+          });
 
         updateMeeting(meetingId, {
           transcript: result.transcript,
@@ -624,8 +666,8 @@ const styles = StyleSheet.create({
   playButton: {
     width: 60,
     height: 60,
-    borderRadius: 30,
     ...skeuStyles.neumorphicCard, // Use shared Convex style
+    borderRadius: 30,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 0,
@@ -635,10 +677,10 @@ const styles = StyleSheet.create({
   ttsButton: {
     width: 44,
     height: 44,
-    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
     ...skeuStyles.neumorphicCard, // Use shared Convex style
+    borderRadius: 22,
     marginLeft: 16,
   },
   playbackTime: {

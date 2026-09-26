@@ -1,21 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, StyleSheet, Alert, Animated, Platform, TouchableOpacity } from 'react-native';
+import { View, ScrollView, StyleSheet, Alert, Animated, Platform, TouchableOpacity } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import {
-  Appbar,
-  Text,
-  Button,
-  useTheme,
-  ActivityIndicator,
-} from 'react-native-paper';
-import { Audio } from 'expo-av';
+import { Appbar, Text, ActivityIndicator } from 'react-native-paper';
 import { useMeetingStore, useSettingsStore } from '../store';
-import { segmentedRecorder, processMeeting, processSegmentedMeeting } from '../services';
+import {
+  segmentedRecorder,
+  processSegmentedMeeting,
+  transcribeAudio,
+  type RecordedSegment,
+} from '../services';
 import { formatDuration, generateMeetingTitle, skeuColors, skeuStyles } from '../utils';
 import { SkeuDialog } from '../components';
 
 export const RecordScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
-  const theme = useTheme();
   const { addMeeting, updateMeeting } = useMeetingStore();
   const { settings } = useSettingsStore();
 
@@ -24,19 +21,67 @@ export const RecordScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const [duration, setDuration] = useState(0);
   const [currentSegment, setCurrentSegment] = useState(1);
   const [totalSegments, setTotalSegments] = useState(1);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [processingStatus, setProcessingStatus] = useState('');
-
-  // Dialog state for "Recording Complete"
-  const [completeDialogVisible, setCompleteDialogVisible] = useState(false);
-  const [pendingMeetingId, setPendingMeetingId] = useState<string | null>(null);
-  const [pendingAudioUris, setPendingAudioUris] = useState<string[]>([]);
+  const [isStopping, setIsStopping] = useState(false);
+  const [liveTranscript, setLiveTranscript] = useState('');
+  const [streamStatus, setStreamStatus] = useState('');
 
   // Dialog state for "Discard Recording"
   const [discardDialogVisible, setDiscardDialogVisible] = useState(false);
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
+  const segmentDraftsRef = useRef<Record<number, string>>({});
+  const segmentJobsRef = useRef<Map<number, Promise<string>>>(new Map());
+  const mountedRef = useRef(true);
+
+  useEffect(() => () => {
+    mountedRef.current = false;
+  }, []);
+
+  const cleanStreamingText = (text: string): string => text
+    .replace(/<\|(?:im_start|im_end|endoftext|eot_id)\|>/g, '')
+    .replace(/<asr_text>/gi, '')
+    .replace(/^language\s+[A-Za-z-]+\s*/i, '')
+    .trim();
+
+  const updateLiveTranscript = () => {
+    const preview = Object.entries(segmentDraftsRef.current)
+      .sort(([a], [b]) => Number(a) - Number(b))
+      .filter(([, text]) => text.trim())
+      .map(([segment, text]) => `第 ${segment} 段\n${cleanStreamingText(text)}`)
+      .join('\n\n');
+    if (mountedRef.current) setLiveTranscript(preview);
+  };
+
+  const queueSegmentStream = (segment: RecordedSegment, segmentNumber: number) => {
+    if (!settings.recordingAutoTranscribe || !settings.recordingStreaming) return;
+
+    segmentDraftsRef.current[segmentNumber] = '';
+    const previousJob = Array.from(segmentJobsRef.current.values()).pop();
+    const job = (previousJob || Promise.resolve(''))
+      .catch(() => '')
+      .then(async () => {
+        if (mountedRef.current) setStreamStatus(`第 ${segmentNumber} 段正在流式转写`);
+        const transcript = await transcribeAudio(segment.uri, settings, {
+          onToken: (token) => {
+            segmentDraftsRef.current[segmentNumber] += token;
+            updateLiveTranscript();
+          },
+        });
+        // The final normalized transcript wins over incremental model tokens.
+        segmentDraftsRef.current[segmentNumber] = transcript;
+        updateLiveTranscript();
+        return transcript;
+      });
+
+    segmentJobsRef.current.set(segmentNumber, job);
+    job.then(() => {
+      if (mountedRef.current) setStreamStatus(`已收到第 ${segmentNumber} 段转写`);
+    }).catch((error) => {
+      console.error(`Streaming transcription failed for segment ${segmentNumber}:`, error);
+      if (mountedRef.current) setStreamStatus(`第 ${segmentNumber} 段转写稍后重试`);
+    });
+  };
 
   // 脉冲动画
   useEffect(() => {
@@ -81,13 +126,28 @@ export const RecordScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
 
   const startRecording = async () => {
     try {
-      // 设置分段回调
-      segmentedRecorder.setOnSegmentComplete((current, total) => {
+      segmentDraftsRef.current = {};
+      segmentJobsRef.current.clear();
+      setLiveTranscript('');
+      setStreamStatus(
+        settings.recordingStreaming
+          ? settings.sttProvider === 'local_r2t2'
+            ? '等待第一段切片'
+            : '切片后立即处理'
+          : '录音中，停止后处理'
+      );
+
+      segmentedRecorder.setOnSegmentComplete((segment, current, total) => {
         setCurrentSegment(current + 1); // 显示正在录制的段号
         setTotalSegments(total + 1);
+        queueSegmentStream(segment, current);
+      });
+      segmentedRecorder.setOnSegmentError((error) => {
+        console.error('Automatic segment save failed:', error);
+        if (mountedRef.current) setStreamStatus('切片保存遇到问题，将在停止后重试');
       });
 
-      await segmentedRecorder.startRecording();
+      await segmentedRecorder.startRecording(settings.recordingSegmentMinutes || 5);
       setIsRecording(true);
       setDuration(0);
       setCurrentSegment(1);
@@ -98,12 +158,14 @@ export const RecordScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   };
 
   const stopRecording = async () => {
+    if (isStopping) return;
+    setIsStopping(true);
     try {
       const { segments, totalDuration } = await segmentedRecorder.stopRecording();
       setIsRecording(false);
 
       // 提取所有段的 URI
-      const audioUris = segments.map((seg: { uri: string; duration: number }) => seg.uri);
+      const audioUris = segments.map((seg: RecordedSegment) => seg.uri);
       const firstUri = audioUris[0] || '';
 
       // 创建会议记录
@@ -115,31 +177,43 @@ export const RecordScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         duration: totalDuration || duration,
       });
 
-      // Show custom dialog
-      setPendingMeetingId(meetingId);
-      setPendingAudioUris(audioUris);
-      setCompleteDialogVisible(true);
+      const existingTranscripts = segments.map((_, index) => segmentJobsRef.current.get(index + 1));
+      const shouldProcess = settings.recordingAutoTranscribe;
+
+      // 录音完成后立即离开录音页，切片转写和总结继续在会议列表里后台运行。
+      navigation.goBack();
+      if (shouldProcess) {
+        void processSegmentedRecording(meetingId, audioUris, existingTranscripts);
+      }
     } catch (error: any) {
+      setIsStopping(false);
       Alert.alert('停止录音失败', error.message);
     }
   };
 
-  const processSegmentedRecording = async (meetingId: string, audioUris: string[]) => {
-    setIsProcessing(true);
-
+  const processSegmentedRecording = async (
+    meetingId: string,
+    audioUris: string[],
+    existingTranscripts: Array<string | Promise<string> | undefined>
+  ) => {
     try {
       const result = await processSegmentedMeeting(
         audioUris,
         settings,
-        (status: string, current?: number, total?: number) => {
+        (status: string) => {
           if (status === 'transcribing') {
-            const progress = current && total ? ` (${current}/${total})` : '';
-            setProcessingStatus(`正在转录语音...${progress}`);
             updateMeeting(meetingId, { status: 'transcribing' });
           } else if (status === 'summarizing') {
-            setProcessingStatus('正在生成总结...');
             updateMeeting(meetingId, { status: 'summarizing' });
           }
+        },
+        {
+          existingTranscripts,
+          onSegmentToken: (segment, token) => {
+            // The screen is normally gone by now, but keeping the callback here
+            // lets a fast stop retain the same streaming semantics.
+            segmentDraftsRef.current[segment] = `${segmentDraftsRef.current[segment] || ''}${token}`;
+          },
         }
       );
 
@@ -149,17 +223,11 @@ export const RecordScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         status: 'done',
       });
 
-      setIsProcessing(false);
-      navigation.replace('Detail', { meetingId });
     } catch (error: any) {
-      setIsProcessing(false);
       updateMeeting(meetingId, {
         status: 'error',
         errorMessage: error.message,
       });
-      Alert.alert('处理失败', error.message, [
-        { text: '确定', onPress: () => navigation.goBack() },
-      ]);
     }
   };
 
@@ -170,25 +238,6 @@ export const RecordScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
       navigation.goBack();
     }
   };
-
-  if (isProcessing) {
-    return (
-      <View style={styles.container}>
-        <Appbar.Header style={styles.header}>
-          <Appbar.Content title="处理中" titleStyle={styles.headerTitle} />
-        </Appbar.Header>
-        <View style={styles.processingContainer}>
-          <View style={styles.processingIndicator}>
-            <ActivityIndicator size="large" color={skeuColors.primary} />
-          </View>
-          <Text style={styles.processingText}>{processingStatus}</Text>
-          <Text style={styles.processingHint}>
-            请耐心等待，这可能需要一些时间...
-          </Text>
-        </View>
-      </View>
-    );
-  }
 
   return (
     <View style={styles.container}>
@@ -226,8 +275,31 @@ export const RecordScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
 
         {/* 状态文字 */}
         <Text style={styles.statusText}>
-          {isRecording ? (isPaused ? '已暂停' : '录音中...') : '准备录音'}
+          {isStopping ? '正在保存录音...' : isRecording ? (isPaused ? '已暂停' : '录音中...') : '准备录音'}
         </Text>
+
+        {isRecording && settings.recordingAutoTranscribe && (
+          <View style={styles.livePanel}>
+            <View style={styles.livePanelHeader}>
+              <View style={styles.livePanelTitleRow}>
+                <MaterialCommunityIcons name="text-box-search-outline" size={18} color={skeuColors.primary} />
+                <Text style={styles.livePanelTitle}>
+                  {settings.sttProvider === 'local_r2t2' && settings.recordingStreaming ? '实时转写' : '后台转写'}
+                </Text>
+              </View>
+              <Text style={styles.livePanelStatus}>{streamStatus || '等待切片'}</Text>
+            </View>
+            <ScrollView style={styles.liveTextScroll} nestedScrollEnabled>
+              <Text style={styles.liveText}>
+                {liveTranscript || (
+                  settings.sttProvider === 'local_r2t2' && settings.recordingStreaming
+                    ? '切片保存后，文字会在这里逐步出现'
+                    : '录音完成后，结果会在会议列表里更新'
+                )}
+              </Text>
+            </ScrollView>
+          </View>
+        )}
 
         {/* 控制按钮 */}
         <View style={styles.controls}>
@@ -244,46 +316,26 @@ export const RecordScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
             <TouchableOpacity
               style={styles.stopButton}
               onPress={stopRecording}
+              disabled={isStopping}
               activeOpacity={0.9}
             >
-              <MaterialCommunityIcons name="stop" size={24} color="#FFFFFF" style={{ marginRight: 8 }} />
-              <Text style={styles.mainButtonLabel}>停止录音</Text>
+              {isStopping ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <>
+                  <MaterialCommunityIcons name="stop" size={24} color="#FFFFFF" style={{ marginRight: 8 }} />
+                  <Text style={styles.mainButtonLabel}>停止录音</Text>
+                </>
+              )}
             </TouchableOpacity>
           )}
         </View>
 
         {/* 提示 */}
         <Text style={styles.hintText}>
-          每 5 分钟自动保存一段，支持任意长时间录音
+          每 {settings.recordingSegmentMinutes || 5} 分钟后台保存一段，录音不中断
         </Text>
       </View>
-
-      {/* Recording Complete Dialog */}
-      <SkeuDialog
-        visible={completeDialogVisible}
-        title="录音完成"
-        message={`录制了 ${pendingAudioUris.length} 段音频，是否立即进行语音转文字和总结？`}
-        buttons={[
-          {
-            text: '稍后处理',
-            style: 'cancel',
-            onPress: () => {
-              setCompleteDialogVisible(false);
-              navigation.goBack();
-            },
-          },
-          {
-            text: '立即处理',
-            onPress: () => {
-              setCompleteDialogVisible(false);
-              if (pendingMeetingId) {
-                processSegmentedRecording(pendingMeetingId, pendingAudioUris);
-              }
-            },
-          },
-        ]}
-        onDismiss={() => setCompleteDialogVisible(false)}
-      />
 
       {/* Discard Recording Dialog */}
       <SkeuDialog
@@ -303,6 +355,8 @@ export const RecordScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
               setDiscardDialogVisible(false);
               await segmentedRecorder.stopRecording().catch(() => { });
               await segmentedRecorder.deleteAllSegments().catch(() => { });
+              segmentJobsRef.current.clear();
+              segmentDraftsRef.current = {};
               navigation.goBack();
             },
           },
@@ -405,8 +459,48 @@ const styles = StyleSheet.create({
   statusText: {
     fontSize: 16,
     color: skeuColors.textSecondary,
-    marginBottom: 56,
+    marginBottom: 24,
     marginTop: 8,
+  },
+  livePanel: {
+    width: '100%',
+    maxWidth: 420,
+    minHeight: 110,
+    maxHeight: 180,
+    marginBottom: 24,
+    padding: 14,
+    ...skeuStyles.neumorphicInset,
+    borderRadius: 20,
+  },
+  livePanelHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  livePanelTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  livePanelTitle: {
+    color: skeuColors.textPrimary,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  livePanelStatus: {
+    color: skeuColors.textMuted,
+    fontSize: 12,
+    maxWidth: '55%',
+    textAlign: 'right',
+  },
+  liveTextScroll: {
+    flex: 1,
+  },
+  liveText: {
+    color: skeuColors.textSecondary,
+    fontSize: 14,
+    lineHeight: 22,
   },
   controls: {
     flexDirection: 'row',
